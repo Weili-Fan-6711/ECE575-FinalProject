@@ -1931,6 +1931,21 @@ void ldst_unit::L1_latency_queue_cycle() {
 
       if (status == HIT) {
         assert(!read_sent);
+      /*new_addr_type probe_pointer = mf_next->get_addr();
+      unsigned char *data = new unsigned char[32];
+      for (int i = 0; i<32; i++){
+        m_core->get_m_core_cluster()->get_gpu()->get_global_memory()->read(probe_pointer+i, 1, data+i);
+          char x = data[i];
+        fprintf(stdout, " %u", x & 0x00FF);
+      }
+      printf("/l11111access address is %llx/", probe_pointer);
+      int type = mf_next->get_access_type();
+      printf("/l11111access type is %d /",type);
+      unsigned int access_size = mf_next->get_access_size();
+      printf("/access size is %u/",access_size);
+      //unsigned int uid = mf_next->get_request_uid();
+      //printf("/access uid is %u/",uid);
+      printf("===l11111cache hit\n");*/
         l1_latency_queue[j][0] = NULL;
         if (mf_next->get_inst().is_load()) {
           for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
@@ -1969,6 +1984,25 @@ void ldst_unit::L1_latency_queue_cycle() {
         assert(!write_sent);
       } else {
         assert(status == MISS || status == HIT_RESERVED);
+
+
+      /*new_addr_type probe_pointer = mf_next->get_addr();
+      unsigned char *data = new unsigned char[32];
+      for (int i = 0; i<32; i++){
+        m_core->get_m_core_cluster()->get_gpu()->get_global_memory()->read(probe_pointer+i, 1, data+i);
+          char x = data[i];
+        fprintf(stdout, " %u", x & 0x00FF);
+      }
+      printf("/l11111access address is %llx/", probe_pointer);
+      int type = mf_next->get_access_type();
+      printf("/l11111access type is %d /",type);
+      unsigned int access_size = mf_next->get_access_size();
+      printf("/access size is %u/",access_size);
+      //unsigned int uid = mf_next->get_request_uid();
+      //printf("/access uid is %u/",uid);
+      printf("===l11111cache miss\n");*/
+ 
+
         l1_latency_queue[j][0] = NULL;
       }
     }

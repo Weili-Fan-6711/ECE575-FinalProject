@@ -32,8 +32,16 @@
 #include "../abstract_hardware_model.h"
 #include "dram.h"
 
+
+#include "../cuda-sim/memory.h"
+#include "similaritycheck.h"
+
+
 #include <list>
 #include <queue>
+#include <sstream> 
+#include <iomanip> 
+#include <string>
 
 class mem_fetch;
 
@@ -195,6 +203,29 @@ class memory_sub_partition {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask);
     m_memcpy_cycle_offset += 1;
   }
+
+
+ 
+  std::string memory_to_string(const unsigned char* data, size_t size){
+    bool all_zero = true;
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    }
+
+    // If all elements are zero, return "0"
+    if (all_zero) {
+        return "0";
+    }
+    std::ostringstream oss;
+    for (size_t i = 0; i < size; i++) {
+        oss << std::hex << static_cast<int>(data[i]);
+    }
+    return oss.str();
+}
+
 
  private:
   // data

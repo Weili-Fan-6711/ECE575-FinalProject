@@ -39,6 +39,7 @@
 #include "addrdec.h"
 #include "gpu-cache.h"
 #include "shader.h"
+#include "similaritycheck.h"
 
 // constants for statistics printouts
 #define GPU_RSTAT_SHD_INFO 0x1
@@ -564,6 +565,9 @@ class gpgpu_sim : public gpgpu_t {
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+
+  //similarity cache
+  class similarity_cache *m_similarity_cache;
 
  private:
   // clocks

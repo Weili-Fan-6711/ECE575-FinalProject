@@ -1952,6 +1952,8 @@ class shader_core_ctx : public core_t {
 
   void get_icnt_power_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
 
+  simt_core_cluster* get_m_core_cluster(){return m_cluster;}
+
   // debug:
   void display_simt_state(FILE *fout, int mask) const;
   void display_pipeline(FILE *fout, int print_mem, int mask3bit) const;

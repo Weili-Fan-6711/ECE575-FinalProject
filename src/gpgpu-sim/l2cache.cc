@@ -32,6 +32,9 @@
 
 #include <list>
 #include <set>
+#include <sstream> 
+#include <iomanip> 
+#include <string>
 
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
@@ -45,6 +48,11 @@
 #include "mem_fetch.h"
 #include "mem_latency_stat.h"
 #include "shader.h"
+
+
+#include "../cuda-sim/memory.h"
+#include "similaritycheck.h"
+
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
                                          mem_access_type type, unsigned size,
@@ -292,6 +300,23 @@ void memory_partition_unit::dram_cycle() {
   // of the original sub partition
   mem_fetch *mf_return = m_dram->return_queue_top();
   if (mf_return) {
+  /*new_addr_type probe_pointer = mf_return->get_addr();
+    unsigned char *data = new unsigned char[32];
+    for (int i = 0; i<32; i++){
+      m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+        char x = data[i];
+      fprintf(stdout, " %u", x & 0x00FF);
+    }
+    printf("/access address is %llx/", probe_pointer);
+    int type = mf_return->get_access_type();
+    printf("/access type is %d /",type);
+    unsigned int access_size = mf_return->get_access_size();
+    printf("/access size is %u/",access_size);
+    //unsigned int uid = mf->get_request_uid();
+    //printf("/uid is %u/", uid);
+    //unsigned int previous_uid = mf->get_original_mf()->get_request_uid();
+    //printf("/previous uid is %u/", previous_uid);
+    printf("===dram-to-L2\n");*/
     unsigned dest_global_spid = mf_return->get_sub_partition_id();
     int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
     assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
@@ -519,6 +544,26 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
 
         if (status == HIT) {
           if (!write_sent) {
+            
+          /*new_addr_type probe_pointer = mf->get_addr();
+            unsigned char *data = new unsigned char[32];
+            for (int i = 0; i<32; i++){
+              m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+               char x = data[i];
+              fprintf(stdout, " %u", x & 0x00FF);
+            }
+            printf("/access address is %llx/", probe_pointer);
+            int type = mf->get_access_type();
+            printf("/access type is %d /",type);
+            unsigned int access_size = mf->get_access_size();
+            printf("/access size is %u/",access_size);
+            //unsigned int uid = mf->get_request_uid();
+            //printf("/uid is %u/", uid);
+            //unsigned int previous_uid = mf->get_original_mf()->get_request_uid();
+            //printf("/previous uid is %u/", previous_uid);
+            printf("===cache hit\n");*/
+           
+
             // L2 cache replies
             assert(!read_sent);
             if (mf->get_access_type() == L1_WRBK_ACC) {
@@ -536,6 +581,25 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
             m_icnt_L2_queue->pop();
           }
         } else if (status != RESERVATION_FAIL) {
+            if (status == MISS){
+            new_addr_type probe_pointer = mf->get_addr();
+            unsigned char *data = new unsigned char[32];
+            for (int i = 0; i<32; i++){
+              m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+               char x = data[i];
+              //fprintf(stdout, " %u", x & 0x00FF);
+            }
+            std::string data_string = memory_to_string(data,32);
+            //,,printf("string is %s",data_string.c_str());
+            //printf("/access address is %llx/", probe_pointer);
+            enum mem_access_type type = mf->get_access_type();
+            //printf("/access type is %d /",type);
+            unsigned int access_size = mf->get_access_size();
+            if (type == GLOBAL_ACC_R){
+              //printf("================test test test===========");
+              m_gpu->m_similarity_cache->check_and_update(data_string);
+            }
+            };
           if (mf->is_write() &&
               (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
                m_config->m_L2_config.m_write_alloc_policy ==

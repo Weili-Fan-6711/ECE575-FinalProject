@@ -137,7 +137,6 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
 
       active = ctx->the_gpgpusim->g_the_gpu->active() ||
                !(ctx->the_gpgpusim->g_stream_manager->empty_protected());
-
     } while (active && !ctx->the_gpgpusim->g_sim_done);
     if (g_debug_execution >= 3) {
       printf("GPGPU-Sim: ** STOP simulation thread (no work) **\n");
