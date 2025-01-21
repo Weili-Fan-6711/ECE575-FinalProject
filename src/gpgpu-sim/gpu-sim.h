@@ -566,8 +566,11 @@ class gpgpu_sim : public gpgpu_t {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
+  /*
+  //Sitao's modfications
   //similarity cache
   class similarity_cache *m_similarity_cache;
+  */
 
  private:
   // clocks

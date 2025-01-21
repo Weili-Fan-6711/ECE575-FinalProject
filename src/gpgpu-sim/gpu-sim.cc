@@ -872,8 +872,10 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
           m_memory_partition_unit[i]->get_sub_partition(p);
     }
   }
+  /*
   //sitao: similarity cache
   m_similarity_cache = new similarity_cache(100);
+  */
 
   icnt_wrapper_init();
   icnt_create(m_shader_config->n_simt_clusters,
@@ -1374,13 +1376,13 @@ void gpgpu_sim::gpu_print_stat() {
       total_l2_css.print_port_stats(stdout, "L2_cache");
     }
   }
-
-  //print similarity cache stat
+  /*
+  //Sitao:print similarity cache stat
   printf("\n========= similarity cache stats =========\n");
   printf("size of similarity cache = %d\n",m_similarity_cache->get_size());
   int total_request = m_similarity_cache->get_total_request();
   int num_hit = m_similarity_cache->get_num_hit();
-  printf("total number non-zero request = %d, number of value repeated = %d\n",total_request,num_hit);
+  printf("total number non-zero request = %d, number of value repeated = %d\n",total_request,num_hit);*/
 
   if (m_config.gpgpu_cflog_interval != 0) {
     spill_log_to_file(stdout, 1, gpu_sim_cycle);

@@ -581,7 +581,11 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
             m_icnt_L2_queue->pop();
           }
         } else if (status != RESERVATION_FAIL) {
-            if (status == MISS){
+          
+            /*if (status == MISS){
+            
+            
+            //Sitao's modification
             new_addr_type probe_pointer = mf->get_addr();
             unsigned char *data = new unsigned char[32];
             for (int i = 0; i<32; i++){
@@ -599,7 +603,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
               //printf("================test test test===========");
               m_gpu->m_similarity_cache->check_and_update(data_string);
             }
-            };
+            };*/
           if (mf->is_write() &&
               (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
                m_config->m_L2_config.m_write_alloc_policy ==
