@@ -52,6 +52,7 @@
 
 #include "../cuda-sim/memory.h"
 #include "similaritycheck.h"
+#define SIMILARITY_CACHE_SIZE 64 // 1KB per partition 
 
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
@@ -85,6 +86,8 @@ memory_partition_unit::memory_partition_unit(unsigned partition_id,
     m_sub_partition[p] =
         new memory_sub_partition(sub_partition_id, m_config, stats, gpu);
   }
+  //Sitao
+  m_similarity_cache = new similarity_cache(SIMILARITY_CACHE_SIZE);
 }
 
 void memory_partition_unit::handle_memcpy_to_gpu(
@@ -107,6 +110,8 @@ memory_partition_unit::~memory_partition_unit() {
     delete m_sub_partition[p];
   }
   delete[] m_sub_partition;
+  //Sitao
+  delete m_similarity_cache;
 }
 
 memory_partition_unit::arbitration_metadata::arbitration_metadata(
@@ -300,23 +305,6 @@ void memory_partition_unit::dram_cycle() {
   // of the original sub partition
   mem_fetch *mf_return = m_dram->return_queue_top();
   if (mf_return) {
-  /*new_addr_type probe_pointer = mf_return->get_addr();
-    unsigned char *data = new unsigned char[32];
-    for (int i = 0; i<32; i++){
-      m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-        char x = data[i];
-      fprintf(stdout, " %u", x & 0x00FF);
-    }
-    printf("/access address is %llx/", probe_pointer);
-    int type = mf_return->get_access_type();
-    printf("/access type is %d /",type);
-    unsigned int access_size = mf_return->get_access_size();
-    printf("/access size is %u/",access_size);
-    //unsigned int uid = mf->get_request_uid();
-    //printf("/uid is %u/", uid);
-    //unsigned int previous_uid = mf->get_original_mf()->get_request_uid();
-    //printf("/previous uid is %u/", previous_uid);
-    printf("===dram-to-L2\n");*/
     unsigned dest_global_spid = mf_return->get_sub_partition_id();
     int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
     assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
@@ -382,6 +370,32 @@ void memory_partition_unit::dram_cycle() {
     m_dram_latency_queue.pop_front();
     m_dram->push(mf);
   }
+}
+
+//Sitao
+void memory_partition_unit::similarity_cache_cycle(){
+  for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel;
+       p++) {
+    if (!m_sub_partition[p]->L2_similarity_queue_empty()){
+      mem_fetch *mf = m_sub_partition[p]->L2_similarity_queue_top();
+      new_addr_type probe_pointer = mf->get_addr();
+      unsigned char *data = new unsigned char[32];
+      for (int i = 0; i<32; i++){
+              m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+               char x = data[i];
+              //fprintf(stdout, " %u", x & 0x00FF);
+            }
+      std::string data_string = memory_to_string(data,32);
+      m_similarity_cache->check_and_update(data_string);
+      delete[] data; // Release the memory for data
+      data = nullptr;
+      m_sub_partition[p]->L2_similarity_queue_pop();
+      //undeveloped logic: makeing sure only one request is check per cycle, need to add in 
+      //round robin support
+      //break;
+    }
+  }
+
 }
 
 void memory_partition_unit::set_done(mem_fetch *mf) {
@@ -458,6 +472,10 @@ memory_sub_partition::memory_sub_partition(unsigned sub_partition_id,
   m_L2_dram_queue = new fifo_pipeline<mem_fetch>("L2-to-dram", 0, L2_dram);
   m_dram_L2_queue = new fifo_pipeline<mem_fetch>("dram-to-L2", 0, dram_L2);
   m_L2_icnt_queue = new fifo_pipeline<mem_fetch>("L2-to-icnt", 0, L2_icnt);
+
+//Sitao
+  m_L2_similarity_queue = new fifo_pipeline<mem_fetch>("L2-to-similarity", 0, 1000);
+
   wb_addr = -1;
 }
 
@@ -468,6 +486,9 @@ memory_sub_partition::~memory_sub_partition() {
   delete m_L2_icnt_queue;
   delete m_L2cache;
   delete m_L2interface;
+
+  //sitao
+  delete m_L2_similarity_queue;
 }
 
 void memory_sub_partition::cache_cycle(unsigned cycle) {
@@ -581,7 +602,14 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
             m_icnt_L2_queue->pop();
           }
         } else if (status != RESERVATION_FAIL) {
-          
+            //Sitao
+            if (status == MISS)
+            {
+              enum mem_access_type type = mf->get_access_type();
+              if (type == GLOBAL_ACC_R && !m_L2_similarity_queue->full()){
+                m_L2_similarity_queue->push(mf);
+              }
+            }
             /*if (status == MISS){
             
             
@@ -665,6 +693,24 @@ bool memory_sub_partition::dram_L2_queue_full() const {
 void memory_sub_partition::dram_L2_queue_push(class mem_fetch *mf) {
   m_dram_L2_queue->push(mf);
 }
+
+//Sitao
+bool memory_sub_partition::L2_similarity_queue_full() const {
+  return m_L2_similarity_queue->full();
+}
+bool memory_sub_partition::L2_similarity_queue_empty() const {
+  return m_L2_similarity_queue->empty();
+}
+void memory_sub_partition::L2_similarity_queue_push(class mem_fetch *mf) {
+  m_L2_similarity_queue->push(mf);
+}
+class mem_fetch *memory_sub_partition::L2_similarity_queue_top() const {
+  return m_L2_similarity_queue->top();
+}
+void memory_sub_partition::L2_similarity_queue_pop() {
+  m_L2_similarity_queue->pop();
+}
+
 
 void memory_sub_partition::print_cache_stat(unsigned &accesses,
                                             unsigned &misses) const {

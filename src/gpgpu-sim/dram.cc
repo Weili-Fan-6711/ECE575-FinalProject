@@ -91,6 +91,10 @@ dram_t::dram_t(unsigned int partition_id, const memory_config *config,
   write_to_read_ratio_blp_rw_average = 0;
   bkgrp_parallsim_rw = 0;
 
+  //Sitao: stat for number of cycle read and write request occupying the bandwidth
+  write_occupied_cycles = 0;
+  read_occupied_cycles = 0;
+
   rw = READ;  // read mode is default
 
   bkgrp = (bankgrp_t **)calloc(sizeof(bankgrp_t *), m_config->nbkgrp);
@@ -564,6 +568,10 @@ bool dram_t::issue_col_command(int j) {
         rwq->set_min_length(m_config->CL);
       }
       rwq->push(bk[j]->mrq);
+
+      //sitao: read occupy bus cycle
+      read_occupied_cycles++;
+
       bk[j]->mrq->txbytes += m_config->dram_atom_size;
       CCDc = m_config->tCCD;
       bkgrp[grp]->CCDLc = m_config->tCCDL;
@@ -599,6 +607,9 @@ bool dram_t::issue_col_command(int j) {
         rwq->set_min_length(m_config->WL);
       }
       rwq->push(bk[j]->mrq);
+
+      //sitao: write occupy bus cycle
+      write_occupied_cycles++;
 
       bk[j]->mrq->txbytes += m_config->dram_atom_size;
       CCDc = m_config->tCCD;
@@ -777,6 +788,10 @@ void dram_t::print(FILE *simFile) const {
   if (m_config->scheduler_type == DRAM_FRFCFS)
     fprintf(simFile, "mrqq: max=%d avg=%g\n", max_mrqs,
             (float)ave_mrqs / n_cmd);
+
+  //sitao: print the read and write occupied cycles
+  printf("read_occupied_cycles = %d\n", read_occupied_cycles);
+  printf("write_occupied_cycles = %d\n", write_occupied_cycles);
 }
 
 void dram_t::visualize() const {

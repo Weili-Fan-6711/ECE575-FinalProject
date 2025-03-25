@@ -79,6 +79,9 @@ class memory_partition_unit {
   void cache_cycle(unsigned cycle);
   void dram_cycle();
   void simple_dram_model_cycle();
+  //Sitao : similarity cache cycle
+  void similarity_cache_cycle();
+  
 
   void set_done(mem_fetch *mf);
 
@@ -106,6 +109,29 @@ class memory_partition_unit {
   class gpgpu_sim *get_mgpu() const {
     return m_gpu;
   }
+  //Sitao
+  class similarity_cache *get_similarity_cache() const {
+    return m_similarity_cache;
+  }
+    std::string memory_to_string(const unsigned char* data, size_t size){
+    bool all_zero = true;
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    }
+
+    // If all elements are zero, return "0"
+    if (all_zero) {
+        return "0";
+    }
+    std::ostringstream oss;
+    for (size_t i = 0; i < size; i++) {
+        oss << std::hex << static_cast<int>(data[i]);
+    }
+    return oss.str();
+}
 
  private:
   unsigned m_id;
@@ -113,6 +139,8 @@ class memory_partition_unit {
   class memory_stats_t *m_stats;
   class memory_sub_partition **m_sub_partition;
   class dram_t *m_dram;
+  //Sitao
+  class similarity_cache *m_similarity_cache;
 
   class arbitration_metadata {
    public:
@@ -187,6 +215,13 @@ class memory_sub_partition {
   bool dram_L2_queue_full() const;
   void dram_L2_queue_push(class mem_fetch *mf);
 
+  //Sitao : interface to L2_similarity_queue
+  bool L2_similarity_queue_empty() const;
+  bool L2_similarity_queue_full() const;
+  class mem_fetch *L2_similarity_queue_top() const;
+  void L2_similarity_queue_pop();
+  void L2_similarity_queue_push(class mem_fetch *mf);
+
   void visualizer_print(gzFile visualizer_file);
   void print_cache_stat(unsigned &accesses, unsigned &misses) const;
   void print(FILE *fp) const;
@@ -248,6 +283,9 @@ class memory_sub_partition {
   fifo_pipeline<mem_fetch> *m_L2_dram_queue;
   fifo_pipeline<mem_fetch> *m_dram_L2_queue;
   fifo_pipeline<mem_fetch> *m_L2_icnt_queue;  // L2 cache hit response queue
+
+  //Sitao's modification
+  fifo_pipeline<mem_fetch> *m_L2_similarity_queue;
 
   class mem_fetch *L2dramout;
   unsigned long long int wb_addr;

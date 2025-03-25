@@ -1384,6 +1384,25 @@ void gpgpu_sim::gpu_print_stat() {
   int num_hit = m_similarity_cache->get_num_hit();
   printf("total number non-zero request = %d, number of value repeated = %d\n",total_request,num_hit);*/
 
+  //Sitao: print similarity cache stat
+  printf("\n========= similarity cache stats =========\n");
+  int total_request = 0;
+  int total_hit = 0;
+  int num_request = 0;
+  int num_hit = 0;
+  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+    num_request = m_memory_partition_unit[i]->get_similarity_cache()->get_total_request();
+    num_hit = m_memory_partition_unit[i]->get_similarity_cache()->get_num_hit();
+    total_request += num_request;
+    total_hit += num_hit;
+    printf("memory partition %d: number of non-zero request = %d, number of hit = %d\n",i,num_request,num_hit);
+  }
+  printf("\nsimialrity cache size = %d * %d partitions, total number of non-zero request = %d, total number of hit = %d\n",m_memory_partition_unit[0]->get_similarity_cache()->get_size(),
+        m_memory_config->m_n_mem,total_request,total_hit);
+ 
+
+
+
   if (m_config.gpgpu_cflog_interval != 0) {
     spill_log_to_file(stdout, 1, gpu_sim_cycle);
     insn_warp_occ_print(stdout);
@@ -1822,6 +1841,10 @@ void gpgpu_sim::cycle() {
       m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle + gpu_tot_sim_cycle);
       m_memory_sub_partition[i]->accumulate_L2cache_stats(
           m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
+    }
+    //Sitao: similarity cache update
+    for (unsigned i = 0; i<m_memory_config->m_n_mem; i++){
+      m_memory_partition_unit[i]->similarity_cache_cycle();
     }
   }
   partiton_reqs_in_parallel += partiton_reqs_in_parallel_per_cycle;

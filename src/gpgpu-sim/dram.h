@@ -227,6 +227,10 @@ class dram_t {
   unsigned int max_mrqs;
   unsigned int ave_mrqs;
 
+  //Sitao: stat for number of cycle read and write request occupying the bandwidth
+  unsigned int write_occupied_cycles;
+  unsigned int read_occupied_cycles;
+
   class frfcfs_scheduler *m_frfcfs_scheduler;
 
   unsigned int n_cmd_partial;
