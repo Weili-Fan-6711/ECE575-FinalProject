@@ -345,6 +345,18 @@ void memory_partition_unit::dram_cycle() {
       if (m_dram->full(mf->is_write())) break;
 
       m_sub_partition[spid]->L2_dram_queue_pop();
+
+      //Sitao's modification: huffman
+      //if it is read request, access metadata cache
+      //if hit, modify the memory request to appropriate size
+      //if miss, send request to DRAM
+
+      //if it is write request (write back), access the compressor
+      
+
+
+
+
       MEMPART_DPRINTF(
           "Issue mem_fetch request %p from sub partition %d to dram\n", mf,
           spid);
@@ -610,7 +622,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
                 m_L2_similarity_queue->push(mf);
               }
             }
-            /*if (status == MISS){
+            if (status == MISS){
             
             
             //Sitao's modification
@@ -631,7 +643,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
               //printf("================test test test===========");
               m_gpu->m_similarity_cache->check_and_update(data_string);
             }
-            };*/
+            };
           if (mf->is_write() &&
               (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
                m_config->m_L2_config.m_write_alloc_policy ==

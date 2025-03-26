@@ -677,6 +677,9 @@ class gpgpu_sim : public gpgpu_t {
   bool m_functional_sim;
   kernel_info_t *m_functional_sim_kernel;
 
+  //Sitao: huffman
+  bool huffman_enabled;
+
  public:
   bool is_functional_sim() { return m_functional_sim; }
   kernel_info_t *get_functional_kernel() { return m_functional_sim_kernel; }
