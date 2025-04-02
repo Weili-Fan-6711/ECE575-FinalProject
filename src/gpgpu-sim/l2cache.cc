@@ -613,8 +613,7 @@ void memory_partition_unit::dram_cycle() {
         bool portfree = m_metadata_cache->data_port_free();
         if (!outputfull && portfree){
           std::list<cache_event> events;
-          enum cache_request_status status = 
-          m_metadata_cache->access(mf->get_addr(),mf
+          enum cache_request_status status = m_metadata_cache->access(mf->get_addr(),mf
                                    m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle,
                                    events);
           bool write_sent = was_write_sent(events);
@@ -675,7 +674,7 @@ void memory_partition_unit::dram_cycle() {
     //check if the request is a read request
     if (mf_to_be_classified!=nullptr){
     if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R | mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
-      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr())   
+      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr());   
       unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
       for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
               m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
