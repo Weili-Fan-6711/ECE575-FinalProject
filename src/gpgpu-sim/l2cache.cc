@@ -53,6 +53,8 @@
 
 #include "../cuda-sim/memory.h"
 #include "similaritycheck.h"
+
+
 #define SIMILARITY_CACHE_SIZE 64 // 1KB per partition 
 #define COMPRESSOR_LATENCY 46
 #define DECOMPRESSOR_LATENCY 82
@@ -433,15 +435,18 @@ void memory_partition_unit::dram_cycle() {
   // L2->DRAM queue to DRAM latency queue
   // Arbitrate among multiple L2 subpartitions
   int last_issued_partition = m_arbitration_metadata.last_borrower();
+  mem_fetch *mf_to_be_classified = nullptr;
   for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel;
        p++) {
     int spid = (p + last_issued_partition + 1) %
                m_config->m_n_sub_partition_per_memory_channel;
     if (!m_sub_partition[spid]->L2_dram_queue_empty() &&
         can_issue_to_dram(spid)) {
-      mem_fetch *mf = m_sub_partition[spid]->L2_dram_queue_top();
-      if (m_dram->full(mf->is_write())) break; //check whether the DRAM is full for request
-
+      mf_to_be_classified = m_sub_partition[spid]->L2_dram_queue_top();
+      if (m_dram->full(mf_to_be_classified->is_write())) break; //check whether the DRAM is full for request
+      MEMPART_DPRINTF(
+      "Issue mem_fetch request %p from sub partition %d to dram\n", mf_to_be_classified,
+      spid);
       m_sub_partition[spid]->L2_dram_queue_pop();
       m_arbitration_metadata.borrow_credit(spid);
       break;  // the DRAM should only accept one request per cycle
@@ -460,20 +465,21 @@ void memory_partition_unit::dram_cycle() {
     m_gpu->huffman_enabled = true;
     }
       /////////////////////huffman code logic starts////////////////////////////////////////
-      if (mf->get_access_type() == GLOBAL_ACC_R | mf->get_access_type() == L2_WR_ALLOC_R){
+      if (mf_to_be_classified!=nullptr){
+      if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R | mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
 
         //L2_to_metadata_translater_read queue push
-        m_L2_to_metadata_translater_read_queue->push(mf);
+        m_L2_to_metadata_translater_read_queue->push(mf_to_be_classified);
 
       }
-      else if (mf->get_access_type() == L2_WRBK_ACC){
+      else if (mf_to_be_classified->get_access_type() == L2_WRBK_ACC){
         //L2_to_compressor queue push
-        m_L2_to_compressor_queue->push(mf);
+        m_L2_to_compressor_queue->push(mf_to_be_classified);
       }
       else{
         //just enter huffman to DRAM (latency) queue
-        m_huffman_to_dram_queue->push(mf); 
-      }
+        m_huffman_to_dram_queue->push(mf_to_be_classified); 
+      }}
 
       //handling read request
       //pop from L2_to_metadata_translater_read queue
@@ -548,7 +554,7 @@ void memory_partition_unit::dram_cycle() {
         unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
         for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
                 m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-                char x = data[i];
+                //char x = data[i];
             //fprintf(stdout, " %u", x & 0x00FF);
           }
         //m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
@@ -564,10 +570,10 @@ void memory_partition_unit::dram_cycle() {
         info.burst_size = outcome.burst_size;
         update_compression_storage(m_config->m_L2_config.block_addr(mf->get_addr()), info);
         //gathering statistics, weighted average
-        m_compression_stats.raw_compression_ratio = 
-        (m_compression_stats.raw_compression_ratio*m_compression_stats.total_compression_requests + outcome.raw_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
-        m_compression_stats.effective_compression_ratio = 
-        (m_compression_stats.effective_compression_ratio*m_compression_stats.total_compression_requests + outcome.effective_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
+        m_compression_stats.total_raw_compression_ratio = 
+        (m_compression_stats.total_raw_compression_ratio*m_compression_stats.total_compression_requests + outcome.raw_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
+        m_compression_stats.total_effective_compression_ratio = 
+        (m_compression_stats.total_effective_compression_ratio*m_compression_stats.total_compression_requests + outcome.effective_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
         m_compression_stats.total_compression_requests++;
 
 
@@ -650,7 +656,6 @@ void memory_partition_unit::dram_cycle() {
       if(!m_huffman_to_dram_queue->empty()){
         mem_fetch *mf = m_huffman_to_dram_queue->top();
         m_huffman_to_dram_queue->pop();
-        MEMPART_DPRINTF("Issue mem_fetch request %p from sub partition %d to dram\n", mf,spid);
         dram_delay_t d;
         d.req = mf;
         d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
@@ -668,34 +673,35 @@ void memory_partition_unit::dram_cycle() {
   else{ 
     //else: sampling phase
     //check if the request is a read request
-    if (mf->get_access_type() == GLOBAL_ACC_R | mf->get_access_type() == L2_WR_ALLOC_R){
-      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf->get_addr())   
+    if (mf_to_be_classified!=nullptr){
+    if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R | mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
+      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr())   
       unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
       for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
               m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-              char x = data[i];
+              //char x = data[i];
           //fprintf(stdout, " %u", x & 0x00FF);
         }
         m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
         delete[] data;
         data = nullptr;
     }
-    MEMPART_DPRINTF(
-    "Issue mem_fetch request %p from sub partition %d to dram\n", mf,
-    spid);
+    
     dram_delay_t d;
-    d.req = mf;
+    d.req = mf_to_be_classified;
     d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
                     m_config->dram_latency;
     m_dram_latency_queue.push_back(d);
-    mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
+    mf_to_be_classified->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
                     m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
+    }
 
 
     ////////////////////////sampling phase ends/////////////////////////////////////////////////////
 
 
   }
+  mf_to_be_classified = nullptr;
 
 
 
@@ -729,7 +735,7 @@ void memory_partition_unit::similarity_cache_cycle(){
       unsigned char *data = new unsigned char[32];
       for (int i = 0; i<32; i++){
               m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-               char x = data[i];
+               //char x = data[i];
               //fprintf(stdout, " %u", x & 0x00FF);
             }
       std::string data_string = memory_to_string(data,32);

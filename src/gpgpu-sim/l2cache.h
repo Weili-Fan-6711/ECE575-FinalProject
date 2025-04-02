@@ -77,6 +77,7 @@ class partition_mf_allocator : public mem_fetch_allocator {
 // - It arbitrates the DRAM channel among multiple sub partitions.
 // - It does not connect directly with the interconnection network.
 class compression_stats{
+  public:
    long long total_compression_requests = 0;
    double total_raw_compression_ratio = 0;
    double total_effective_compression_ratio = 0;
