@@ -172,6 +172,25 @@ public:
 };
 
 /**
+ * Structure to hold compression results including raw and effective metrics
+ */
+struct compress_outcome {
+    size_t raw_compressed_size_bits;   // Size of the compressed data in bits
+    double raw_compression_ratio;      // Original size / raw compressed size
+    size_t mag_compressed_size_bytes;  // Size rounded up to MAG boundary
+    size_t burst_size;                 // Rounded up multiple of MAG
+    double effective_compression_ratio; // Original size / effective size
+    
+    // Default constructor
+    compress_outcome() : 
+        raw_compressed_size_bits(0),
+        raw_compression_ratio(1.0),
+        mag_compressed_size_bytes(0),
+        burst_size(0),
+        effective_compression_ratio(1.0) {}
+};
+
+/**
  * Class for creating and managing Huffman codes based on symbol frequencies.
  * Uses canonical Huffman coding for more efficient representation.
  */
@@ -217,6 +236,9 @@ private:
     // Maximum code length in the codebook
     size_t m_max_code_length;
     
+    // Memory access granularity in bytes (default 32 bytes for GPU)
+    size_t m_mag;
+    
     // Build the Huffman tree from frequency pairs
     std::shared_ptr<huffman_node> build_tree(const std::vector<std::pair<uint64_t, uint64_t>>& freq_pairs);
     
@@ -227,8 +249,58 @@ private:
     void make_canonical_codes();
     
 public:
+    /**
+     * Compressor class for encoding data using Huffman codes
+     */
+    class compressor {
+    private:
+        const huffman_codebook& m_codebook;  // Reference to the parent codebook
+        
+    public:
+        /**
+         * Constructor for the compressor
+         * 
+         * @param codebook Reference to the parent huffman_codebook
+         */
+        compressor(const huffman_codebook& codebook) : m_codebook(codebook) {}
+        
+        /**
+         * Compress a data block using the Huffman codebook
+         * 
+         * @param data Pointer to the data block (array of bytes)
+         * @param size Size of the data block in bytes
+         * @return Compression outcome with statistics
+         */
+        compress_outcome compress_data_block(const unsigned char* data, size_t size) const;
+        
+        /**
+         * Extract symbols from a data block (similar to frequency_value_table::process_data_block)
+         * 
+         * @param data Pointer to the data block
+         * @param size Size of the data block in bytes
+         * @return Vector of extracted symbols
+         */
+        std::vector<uint64_t> extract_symbols(const unsigned char* data, size_t size) const;
+        
+        /**
+         * Extract a symbol from a bit position in a byte array
+         * (similar to frequency_value_table::extract_symbol_from_bitstream)
+         * 
+         * @param data Pointer to the data
+         * @param size Size of the data in bytes
+         * @param bit_pos Current bit position (will be updated)
+         * @param symbol_length Length of symbol in bits
+         * @return Extracted symbol
+         */
+        uint64_t extract_symbol_from_bitstream(const unsigned char* data, size_t size, 
+                                              size_t& bit_pos, size_t symbol_length) const;
+    };
+    
     // Frequency table for symbol tracking
     frequency_value_table freq_table;
+    
+    // Compressor instance
+    compressor m_compressor;
     
     /**
      * Constructor for huffman_codebook
@@ -236,8 +308,9 @@ public:
      * @param checking_table_size Size threshold that triggers eviction
      * @param final_table_size Size to reduce table to after eviction
      * @param symbol_length Length of symbols in bits
+     * @param mag Memory access granularity in bytes (default 32)
      */
-    huffman_codebook(size_t checking_table_size, size_t final_table_size, size_t symbol_length);
+    huffman_codebook(size_t checking_table_size, size_t final_table_size, size_t symbol_length, size_t mag = 32);
     
     /**
      * Generate Huffman codes based on the current frequency table
@@ -246,6 +319,29 @@ public:
      * @return Number of codes generated
      */
     size_t generate_huffman_codes();
+    
+    /**
+     * Get the memory access granularity (MAG)
+     * 
+     * @return MAG in bytes
+     */
+    size_t get_mag() const;
+    
+    /**
+     * Set the memory access granularity (MAG)
+     * 
+     * @param mag New MAG value in bytes
+     */
+    void set_mag(size_t mag);
+    
+    /**
+     * Compress a data block using the current Huffman codebook
+     * 
+     * @param data Pointer to the data block
+     * @param size Size of the data block in bytes
+     * @return Compression outcome with statistics
+     */
+    compress_outcome compress_block(const unsigned char* data, size_t size) const;
     
     /**
      * Check if a symbol has a code in the codebook
@@ -317,6 +413,9 @@ public:
      */
     size_t size() const;
 };
+
+
+
 
 #endif
 

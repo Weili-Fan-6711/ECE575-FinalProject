@@ -150,6 +150,13 @@ void memory_config::reg_options(class OptionParser *opp) {
                          " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
                          "alloc>,<mshr>:<N>:<merge>,<mq>}",
                          "64:128:8,L:B:m:N,A:16:4,4");
+  //sitao: huffman metadata cache
+  option_parser_register(opp, "-gpgpu_cache:huffman_metadata", OPT_CSTR,
+                         &m_huffman_metadata_config.m_config_string,
+                         "huffman metadata cache config "
+                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
+                         "alloc>,<mshr>:<N>:<merge>,<mq>}",
+                         "64:128:8,L:B:m:N,A:16:4,4");
   option_parser_register(opp, "-gpgpu_cache:dl2_texture_only", OPT_BOOL,
                          &m_L2_texure_only, "L2 cache used for texture only",
                          "1");

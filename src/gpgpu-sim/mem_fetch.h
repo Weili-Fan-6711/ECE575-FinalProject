@@ -128,6 +128,17 @@ class mem_fetch {
   mem_fetch *get_original_mf() { return original_mf; }
   mem_fetch *get_original_wr_mf() { return original_wr_mf; }
 
+
+
+  //Sitao: Compression information
+  bool m_compressed = false;
+  new_addr_type m_original_addr;
+  new_addr_type m_metadata_addr;
+  unsigned m_original_size;
+  unsigned m_compressed_size;
+  bool is_meta_data_request = false;
+
+
  private:
   // request source information
   unsigned m_request_uid;
@@ -152,6 +163,7 @@ class mem_fetch {
                          // chip-row-bank-column address)
   enum mf_type m_type;
 
+  
   // statistics
   unsigned
       m_timestamp;  // set to gpu_sim_cycle+gpu_tot_sim_cycle at struct creation

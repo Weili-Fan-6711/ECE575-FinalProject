@@ -1,5 +1,19 @@
 {
     "files.associations": {
-        "xhash": "cpp"
+        "xhash": "cpp",
+        "*.tup": "cpp",
+        "array": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "vector": "cpp",
+        "xstring": "cpp",
+        "xutility": "cpp",
+        "iosfwd": "cpp",
+        "xiosbase": "cpp",
+        "algorithm": "cpp",
+        "charconv": "cpp",
+        "ios": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp"
     }
 }

@@ -229,6 +229,8 @@ class memory_config {
 
     m_address_mapping.init(m_n_mem, m_n_sub_partition_per_memory_channel);
     m_L2_config.init(&m_address_mapping);
+    //sitao: huffman metadata cache
+    m_huffman_metadata_config.init(&m_address_mapping);
 
     m_valid = true;
 
@@ -240,6 +242,8 @@ class memory_config {
 
   bool m_valid;
   mutable l2_cache_config m_L2_config;
+  //sitao: huffman metadata cache
+  mutable l2_cache_config m_huffman_metadata_config;
   bool m_L2_texure_only;
 
   char *gpgpu_dram_timing_opt;
@@ -671,14 +675,15 @@ class gpgpu_sim : public gpgpu_t {
   void change_cache_config(FuncCache cache_config);
   void set_cache_config(std::string kernel_name);
 
+  //Sitao: huffman
+  bool huffman_enabled = false;
+
   // Jin: functional simulation for CDP
  private:
   // set by stream operation every time a functoinal simulation is done
   bool m_functional_sim;
   kernel_info_t *m_functional_sim_kernel;
 
-  //Sitao: huffman
-  bool huffman_enabled;
 
  public:
   bool is_functional_sim() { return m_functional_sim; }

@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <bitset>
 #include <sstream>
+#include <cmath>
 
 // Constructor implementation
 frequency_value_table::frequency_value_table(size_t checking_table_size, size_t final_table_size, size_t symbol_length)
@@ -240,9 +241,169 @@ std::unordered_map<uint64_t, uint64_t>::const_iterator frequency_value_table::en
 // ------------- Huffman Codebook Implementation -------------
 
 // Constructor
-huffman_codebook::huffman_codebook(size_t checking_table_size, size_t final_table_size, size_t symbol_length)
+huffman_codebook::huffman_codebook(size_t checking_table_size, size_t final_table_size, size_t symbol_length, size_t mag)
     : m_max_code_length(0), 
-      freq_table(checking_table_size, final_table_size, symbol_length) {
+      m_mag(mag),
+      freq_table(checking_table_size, final_table_size, symbol_length),
+      m_compressor(*this) {
+}
+
+// Get MAG value
+size_t huffman_codebook::get_mag() const {
+    return m_mag;
+}
+
+// Set MAG value
+void huffman_codebook::set_mag(size_t mag) {
+    m_mag = mag;
+}
+
+// Compress a data block using the codebook
+compress_outcome huffman_codebook::compress_block(const unsigned char* data, size_t size) const {
+    return m_compressor.compress_data_block(data, size);
+}
+
+// Extract a symbol from a bitstream - compressor implementation
+uint64_t huffman_codebook::compressor::extract_symbol_from_bitstream(
+    const unsigned char* data, size_t size, size_t& bit_pos, size_t symbol_length) const {
+    
+    uint64_t symbol = 0;
+    
+    for (size_t j = 0; j < symbol_length; ++j) {
+        // Calculate which byte and which bit within that byte
+        size_t byte_pos = bit_pos / 8;
+        size_t bit_offset = 7 - (bit_pos % 8);  // MSB first (bit 7 is the highest bit in a byte)
+        
+        // Make sure we don't go beyond the data boundary
+        if (byte_pos >= size) {
+            bit_pos += (symbol_length - j);  // Skip remaining bits
+            break;
+        }
+        
+        // Extract the bit and add it to our symbol
+        if (data[byte_pos] & (1 << bit_offset)) {
+            symbol |= (1ULL << (symbol_length - 1 - j));
+        }
+        
+        bit_pos++;
+    }
+    
+    return symbol;
+}
+
+// Extract symbols from a data block - compressor implementation
+std::vector<uint64_t> huffman_codebook::compressor::extract_symbols(
+    const unsigned char* data, size_t size) const {
+    
+    if (!data) {
+        std::cerr << "Error: Null data pointer provided to compressor" << std::endl;
+        return {};
+    }
+    
+    // Get the symbol length from the codebook's frequency table
+    size_t symbol_length = m_codebook.freq_table.symbol_length();
+    
+    // Calculate total bits available in the data
+    size_t total_bits = size * 8;
+    
+    // Calculate how many complete symbols we can extract
+    size_t num_symbols = total_bits / symbol_length;
+    if (total_bits % symbol_length != 0) {
+        std::cerr << "Warning: Total bits not a multiple of symbol length" << std::endl;
+    }
+    
+    // Track position in the bitstream and extract symbols
+    size_t bit_pos = 0;
+    std::vector<uint64_t> symbols;
+    symbols.reserve(num_symbols);
+    
+    // Process each symbol
+    for (size_t i = 0; i < num_symbols; ++i) {
+        // Extract a symbol from the bitstream
+        uint64_t symbol = extract_symbol_from_bitstream(data, size, bit_pos, symbol_length);
+        symbols.push_back(symbol);
+    }
+    
+    return symbols;
+}
+
+// Compress a data block using the Huffman codebook - compressor implementation
+compress_outcome huffman_codebook::compressor::compress_data_block(
+    const unsigned char* data, size_t size) const {
+    
+    compress_outcome result;
+    
+    // If we don't have any codes or data is null, return no compression
+    if (m_codebook.size() == 0 || !data) {
+        result.raw_compressed_size_bits = size * 8;
+        result.raw_compression_ratio = 1.0;
+        result.mag_compressed_size_bytes = size;
+        result.burst_size = (size + m_codebook.get_mag() - 1) / m_codebook.get_mag(); // Ceiling division
+        result.effective_compression_ratio = 1.0;
+        return result;
+    }
+    
+    // Extract symbols from the data block
+    std::vector<uint64_t> symbols = extract_symbols(data, size);
+    
+    // Original size in bits
+    size_t original_size_bits = size * 8;
+    
+    // Compressed size in bits (starts with 0)
+    size_t compressed_size_bits = 0;
+    
+    // Count how many symbols we couldn't encode (no code in the codebook)
+    size_t uncoded_symbols = 0;
+    
+    // Encode each symbol and calculate the total size
+    for (uint64_t symbol : symbols) {
+        if (m_codebook.has_code(symbol)) {
+            // Add the code length to our compressed size
+            compressed_size_bits += m_codebook.get_code_length(symbol);
+        } else {
+            // If we don't have a code for this symbol, we'll need the original bits
+            uncoded_symbols++;
+            compressed_size_bits += m_codebook.freq_table.symbol_length();
+        }
+    }
+    
+
+    
+    // Add 1 bit per symbol to indicate if it's coded or literal
+    compressed_size_bits += symbols.size();
+
+    
+    // Set the raw compressed size in bits
+    result.raw_compressed_size_bits = compressed_size_bits;
+    
+    // Calculate the raw compression ratio
+    // Prevent division by zero
+    if (compressed_size_bits > 0) {
+        result.raw_compression_ratio = static_cast<double>(original_size_bits) / compressed_size_bits;
+    } else {
+        result.raw_compression_ratio = 1.0; // Default to no compression if something went wrong
+    }
+    
+    // Calculate the MAG compressed size in bytes (rounded up to next MAG boundary)
+    // First convert bits to bytes (rounding up)
+    size_t compressed_size_bytes = (compressed_size_bits + 7) / 8; // Ceiling division for bits to bytes
+    
+    // Then round up to the next MAG boundary
+    result.mag_compressed_size_bytes = 
+        ((compressed_size_bytes + m_codebook.get_mag() - 1) / m_codebook.get_mag()) * m_codebook.get_mag();
+    
+    // Calculate the burst size (how many MAG units)
+    result.burst_size = result.mag_compressed_size_bytes / m_codebook.get_mag();
+    
+    // Calculate the effective compression ratio
+    if (result.mag_compressed_size_bytes > 0) {
+        result.effective_compression_ratio = 
+            static_cast<double>(size) / result.mag_compressed_size_bytes;
+    } else {
+        result.effective_compression_ratio = 1.0;
+    }
+    
+    return result;
 }
 
 // Build Huffman tree from frequency pairs

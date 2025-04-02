@@ -35,6 +35,7 @@
 
 #include "../cuda-sim/memory.h"
 #include "similaritycheck.h"
+#include "huffman.h"
 
 
 #include <list>
@@ -44,6 +45,13 @@
 #include <string>
 
 class mem_fetch;
+
+struct compression_info{
+   bool is_compressed = false;
+   unsigned original_size = 0; //in bytes
+   unsigned rawcompressed_size = 0; //in bits
+   unsigned burst_size = 0; // number of burst based on MAG，multiplied by MAG to get back MAG_compressed_size
+};
 
 class partition_mf_allocator : public mem_fetch_allocator {
  public:
@@ -68,6 +76,11 @@ class partition_mf_allocator : public mem_fetch_allocator {
 // channel.
 // - It arbitrates the DRAM channel among multiple sub partitions.
 // - It does not connect directly with the interconnection network.
+class compression_stats{
+   long long total_compression_requests = 0;
+   double total_raw_compression_ratio = 0;
+   double total_effective_compression_ratio = 0;
+};
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
@@ -133,6 +146,29 @@ class memory_partition_unit {
     return oss.str();
 }
 
+
+  //Sitao: compressor to DRAM latency queue
+  fifo_pipeline<mem_fetch> *m_huffman_to_dram_queue;
+  fifo_pipeline<mem_fetch> *m_L2_to_metadata_translater_read_queue;
+  fifo_pipeline<mem_fetch> *m_to_metadata_cache_queue;
+  fifo_pipeline<mem_fetch> *m_L2_to_compressor_queue;
+  fifo_pipeline<mem_fetch> *m_from_metadata_cache_queue;
+  fifo_pipeline<mem_fetch> *m_metadata_cache_to_dram_queue;//do not use, use m_huffman_to_dram_queue instead
+  fifo_pipeline<mem_fetch> *m_dram_to_metadata_cache_queue;
+  fifo_pipeline<mem_fetch> *m_decompressor_to_L2_queue;
+  //create huffman codebook
+  class huffman_codebook *m_huffman_codebook;
+  class l2_cache *m_metadata_cache;
+  std::unordered_map<new_addr_type, compression_info> m_compression_storage;
+  compression_stats m_compression_stats;
+
+
+  //Sitao:interface for m_compression_storage
+  void update_compression_storage(new_addr_type addr, compression_info info);
+  compression_info get_compression_info(new_addr_type addr);
+  class metadata_cache_interface *m_metadata_interface;
+  class partition_mf_allocator *m_metadata_allocator;
+
  private:
   unsigned m_id;
   const memory_config *m_config;
@@ -180,6 +216,9 @@ class memory_partition_unit {
     class mem_fetch *req;
   };
   std::list<dram_delay_t> m_dram_latency_queue;
+  //sitao: compressor latency queue
+  std::list<dram_delay_t> m_compressor_latency_queue;
+  std::list<dram_delay_t> m_decompressor_latency_queue;
 
   class gpgpu_sim *m_gpu;
 };
@@ -322,6 +361,22 @@ class L2interface : public mem_fetch_interface {
 
  private:
   memory_sub_partition *m_unit;
+};
+
+class metadata_cache_interface : public mem_fetch_interface {
+ public:
+  metadata_cache_interface(memory_partition_unit *unit) { m_unit = unit; }
+  virtual ~metadata_cache_interface() {}
+  virtual bool full(unsigned size, bool write) const {
+    return m_unit->m_huffman_to_dram_queue->full();
+  }
+  virtual void push(mem_fetch *mf) {
+    mf->set_status(IN_PARTITION_COMPRESSOR_MISS_QUEUE, 0 /*FIXME*/);
+    m_unit->m_huffman_to_dram_queue->push(mf);
+  }
+
+ private:
+  memory_partition_unit *m_unit;
 };
 
 #endif

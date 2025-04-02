@@ -48,12 +48,22 @@
 #include "mem_fetch.h"
 #include "mem_latency_stat.h"
 #include "shader.h"
+#include "huffman.h"
 
 
 #include "../cuda-sim/memory.h"
 #include "similaritycheck.h"
 #define SIMILARITY_CACHE_SIZE 64 // 1KB per partition 
-
+#define COMPRESSOR_LATENCY 46
+#define DECOMPRESSOR_LATENCY 82
+#define TOTAL_NUMBER_OF_COMPRESSOR 68
+#define TOTAL_NUMBER_OF_DECOMPRESSOR 120
+#define PWD 4 //parallel decoding way
+#define PWD_DECOMPRESSOR_LATENCY DECOMPRESSOR_LATENCY/PWD
+#define PWD_TOTAL_NUMBER_OF_DECOMPRESSOR TOTAL_NUMBER_OF_DECOMPRESSOR/PWD
+#define HUFFMAN_SYMBOL_LENGTH 4 //in byte, effective 32 bits
+#define MAG 32 // Memory Access Granularity in bytes
+#define MEMORY_REQUEST_SIZE 128 //in byte
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
                                          mem_access_type type, unsigned size,
@@ -64,6 +74,23 @@ mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
   mem_fetch *mf = new mem_fetch(access, NULL, WRITE_PACKET_SIZE, -1, -1, -1,
                                 m_memory_config, cycle);
   return mf;
+}
+
+//Sitao:interface for m_compression_storage
+void memory_partition_unit::update_compression_storage(new_addr_type addr, compression_info info){
+  m_compression_storage[addr] = info;
+}
+
+compression_info memory_partition_unit::get_compression_info(new_addr_type addr){
+  auto it = m_compression_storage.find(addr);
+  if (it != m_compression_storage.end()){
+    return it->second;
+  }
+  else{
+    compression_info default_info;
+    default_info.is_compressed = false;
+    return default_info;
+  }
 }
 
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
@@ -88,6 +115,20 @@ memory_partition_unit::memory_partition_unit(unsigned partition_id,
   }
   //Sitao
   m_similarity_cache = new similarity_cache(SIMILARITY_CACHE_SIZE);
+  m_huffman_codebook = new huffman_codebook(1200, 1000, HUFFMAN_SYMBOL_LENGTH, MAG);
+  m_metadata_cache = new l2_cache("metadata_cache", m_config->m_huffman_metadata_config, -1, -1, m_metadata_interface,
+                                   m_metadata_allocator, IN_PARTITION_COMPRESSOR_MISS_QUEUE, m_gpu);
+
+   m_huffman_to_dram_queue = new fifo_pipeline<mem_fetch>("compressor_to_dram_queue", 0, 1000);
+   m_L2_to_metadata_translater_read_queue = new fifo_pipeline<mem_fetch>("L2_to_metadata_translater_read_queue", 0, 1000);
+   m_L2_to_compressor_queue = new fifo_pipeline<mem_fetch>("L2_to_compressor_queue", 0, 1000);
+   m_to_metadata_cache_queue = new fifo_pipeline<mem_fetch>("to_metadata_cache_queue", 0, 1000);
+   m_from_metadata_cache_queue = new fifo_pipeline<mem_fetch>("from_metadata_cache_queue", 0, 1000);
+   m_metadata_cache_to_dram_queue = new fifo_pipeline<mem_fetch>("metadata_cache_to_dram_queue", 0, 1000);
+   m_dram_to_metadata_cache_queue = new fifo_pipeline<mem_fetch>("dram_to_metadata_cache_queue", 0, 1000);
+   m_decompressor_to_L2_queue = new fifo_pipeline<mem_fetch>("decompressor_to_L2_queue", 0, 1000);
+   m_metadata_allocator = new partition_mf_allocator(m_config);
+   m_metadata_interface = new metadata_cache_interface(this);
 }
 
 void memory_partition_unit::handle_memcpy_to_gpu(
@@ -112,6 +153,18 @@ memory_partition_unit::~memory_partition_unit() {
   delete[] m_sub_partition;
   //Sitao
   delete m_similarity_cache;
+  delete m_huffman_to_dram_queue;
+  delete m_L2_to_metadata_translater_read_queue;
+  delete m_L2_to_compressor_queue;
+  delete m_huffman_codebook;
+  delete m_metadata_cache;
+  delete m_to_metadata_cache_queue;
+  delete m_from_metadata_cache_queue;
+  delete m_metadata_cache_to_dram_queue;
+  delete m_dram_to_metadata_cache_queue;
+  delete m_metadata_allocator;
+  delete m_metadata_interface;
+  delete m_decompressor_to_L2_queue;
 }
 
 memory_partition_unit::arbitration_metadata::arbitration_metadata(
@@ -304,7 +357,48 @@ void memory_partition_unit::dram_cycle() {
   // pop completed memory request from dram and push it to dram-to-L2 queue
   // of the original sub partition
   mem_fetch *mf_return = m_dram->return_queue_top();
-  if (mf_return) {
+
+  //Sitao: Huffman code logic
+  if (mf_return -> is_meta_data_request){
+    //return to metadata cache
+    m_dram_to_metadata_cache_queue->push(mf_return);
+    m_dram->return_queue_pop();
+  }
+  else {
+    if (mf_return->get_access_type() == GLOBAL_ACC_R || mf_return->get_access_type() == L2_WR_ALLOC_R){
+    //decompressor logic
+      if (m_decompressor_latency_queue.size() <= ((PWD_TOTAL_NUMBER_OF_DECOMPRESSOR + m_config->m_n_mem - 1) / m_config->m_n_mem)){
+        //reuse dram_delay_t
+        dram_delay_t d;
+        d.req = mf_return;
+        d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
+                        PWD_DECOMPRESSOR_LATENCY;
+        m_decompressor_latency_queue.push_back(d);
+        m_dram->return_queue_pop();}
+    }
+    else{
+      //push to decompressor to L2 queue
+      if (!m_decompressor_to_L2_queue->full()){
+      m_decompressor_to_L2_queue->push(mf_return);
+      m_dram->return_queue_pop();
+      }
+    }
+      
+  }
+
+  //complete from latency queue
+  if (!m_decompressor_latency_queue.empty() &&
+      ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
+       m_decompressor_latency_queue.front().ready_cycle)){
+    mem_fetch *mf_return = m_decompressor_latency_queue.front().req;
+    m_decompressor_latency_queue.pop_front();
+    m_decompressor_to_L2_queue->push(mf_return);
+  }
+  
+  //going from decompressor, insert into subpartition
+  if (!m_decompressor_to_L2_queue->empty()){
+    mem_fetch *mf_return = m_decompressor_to_L2_queue->top();
+    if (mf_return) {
     unsigned dest_global_spid = mf_return->get_sub_partition_id();
     int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
     assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
@@ -321,10 +415,14 @@ void memory_partition_unit::dram_cycle() {
             "mem_fetch request %p return from dram to sub partition %d\n",
             mf_return, dest_spid);
       }
-      m_dram->return_queue_pop();
+      //m_dram->return_queue_pop();
+      m_decompressor_to_L2_queue->pop();
     }
-  } else {
-    m_dram->return_queue_pop();
+  } 
+  else {
+    //m_dram->return_queue_pop();
+    m_decompressor_to_L2_queue->pop();
+  }
   }
 
   m_dram->cycle();
@@ -342,36 +440,266 @@ void memory_partition_unit::dram_cycle() {
     if (!m_sub_partition[spid]->L2_dram_queue_empty() &&
         can_issue_to_dram(spid)) {
       mem_fetch *mf = m_sub_partition[spid]->L2_dram_queue_top();
-      if (m_dram->full(mf->is_write())) break;
+      if (m_dram->full(mf->is_write())) break; //check whether the DRAM is full for request
 
       m_sub_partition[spid]->L2_dram_queue_pop();
-
-      //Sitao's modification: huffman
-      //if it is read request, access metadata cache
-      //if hit, modify the memory request to appropriate size
-      //if miss, send request to DRAM
-
-      //if it is write request (write back), access the compressor
-      
-
-
-
-
-      MEMPART_DPRINTF(
-          "Issue mem_fetch request %p from sub partition %d to dram\n", mf,
-          spid);
-      dram_delay_t d;
-      d.req = mf;
-      d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
-                      m_config->dram_latency;
-      m_dram_latency_queue.push_back(d);
-      mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
-                     m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
       m_arbitration_metadata.borrow_credit(spid);
       break;  // the DRAM should only accept one request per cycle
     }
   }
   //}
+
+  
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //Sitao's modification: going into huffman compressor
+  if (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >= 20000000)//20 Million cycles
+  { 
+    if (m_gpu->huffman_enabled != true){
+    //generate huffman codebook
+    m_huffman_codebook->generate_huffman_codes();
+    m_gpu->huffman_enabled = true;
+    }
+      /////////////////////huffman code logic starts////////////////////////////////////////
+      if (mf->get_access_type() == GLOBAL_ACC_R | mf->get_access_type() == L2_WR_ALLOC_R){
+
+        //L2_to_metadata_translater_read queue push
+        m_L2_to_metadata_translater_read_queue->push(mf);
+
+      }
+      else if (mf->get_access_type() == L2_WRBK_ACC){
+        //L2_to_compressor queue push
+        m_L2_to_compressor_queue->push(mf);
+      }
+      else{
+        //just enter huffman to DRAM (latency) queue
+        m_huffman_to_dram_queue->push(mf); 
+      }
+
+      //handling read request
+      //pop from L2_to_metadata_translater_read queue
+      if (!m_L2_to_metadata_translater_read_queue->empty()){
+        mem_fetch *mf = m_L2_to_metadata_translater_read_queue->top();
+        m_L2_to_metadata_translater_read_queue->pop();
+        //access compression_storage to see if the data is compressed
+        compression_info info = get_compression_info(m_config->m_L2_config.block_addr(mf->get_addr()));
+        if (!info.is_compressed){
+          //if not compressed, just enter huffman to DRAM (latency) queue
+          m_huffman_to_dram_queue->push(mf);
+        }
+        else{
+          //if compressed, altering the memory request to access the meta data (storing original address
+          mf->m_compressed = true;
+          mf->m_original_addr = mf->get_addr();
+          mf->m_original_size = mf->get_data_size();
+          // Calculate metadata address by shifting original address right by 7 bits (mapping)
+          mf->m_metadata_addr = mf->m_original_addr >> 7;
+          mf->set_addr(mf->m_metadata_addr);
+          mf->is_meta_data_request = true;
+          //push the altered request to to_meatadata_cache_queue
+          m_to_metadata_cache_queue->push(mf);}
+      }
+
+      //pop from_metadata_cache_queue
+      if (!m_from_metadata_cache_queue->empty()){
+        mem_fetch *mf = m_from_metadata_cache_queue->top();
+        assert(mf->is_meta_data_request);
+        mf->is_meta_data_request = false;
+        m_from_metadata_cache_queue->pop();
+        if (mf->m_compressed && (mf->get_access_type() == GLOBAL_ACC_R 
+        || mf->get_access_type() == L2_WR_ALLOC_R)){
+          //alter the request to access the original data
+          mf->set_addr(mf->m_original_addr);
+          //access the compression_storage to get the compressed (burst) size
+          compression_info info = get_compression_info(m_config->m_L2_config.block_addr(mf->get_addr()));
+          //assert(info != NULL);
+          mf->set_data_size(info.burst_size*MAG);
+          //push the altered request to huffman to DRAM (latency) queue
+          m_huffman_to_dram_queue->push(mf);
+          }
+
+
+
+      //handling write request
+      //pop from L2_to_compressor queue
+      if (!m_L2_to_compressor_queue->empty()){
+        mem_fetch *mf = m_L2_to_compressor_queue->top();
+        if ( m_compressor_latency_queue.size() <= ((TOTAL_NUMBER_OF_COMPRESSOR + m_config->m_n_mem - 1) / m_config->m_n_mem)){
+      assert(mf->get_access_type() == L2_WRBK_ACC);
+      //create a compressor delay packet, reuse dram_delay_t
+      m_L2_to_compressor_queue->pop();
+      dram_delay_t d;
+      d.req = mf;
+      d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
+                      COMPRESSOR_LATENCY;
+      m_compressor_latency_queue.push_back(d);
+      //push the delay packet to compressor latency queue
+      }
+      }
+
+      //Get the request from compressor latency queue to compressor to DRAM queue
+      if (!m_compressor_latency_queue.empty()&&
+      ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >= m_compressor_latency_queue.front().ready_cycle)){
+        mem_fetch *mf = m_compressor_latency_queue.front().req;
+        m_compressor_latency_queue.pop_front();
+        m_huffman_to_dram_queue->push(mf);
+
+        //call compressor
+        new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf->get_addr());   
+        unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
+        for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
+                m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+                char x = data[i];
+            //fprintf(stdout, " %u", x & 0x00FF);
+          }
+        //m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
+        compress_outcome outcome = m_huffman_codebook->m_compressor.compress_data_block(data, mf->get_data_size());
+        delete[] data;
+        data = nullptr;
+
+        //update the compression_storage
+        compression_info info;
+        info.is_compressed = true;
+        info.original_size = mf->get_data_size();
+        info.rawcompressed_size = outcome.raw_compressed_size_bits;
+        info.burst_size = outcome.burst_size;
+        update_compression_storage(m_config->m_L2_config.block_addr(mf->get_addr()), info);
+        //gathering statistics, weighted average
+        m_compression_stats.raw_compression_ratio = 
+        (m_compression_stats.raw_compression_ratio*m_compression_stats.total_compression_requests + outcome.raw_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
+        m_compression_stats.effective_compression_ratio = 
+        (m_compression_stats.effective_compression_ratio*m_compression_stats.total_compression_requests + outcome.effective_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
+        m_compression_stats.total_compression_requests++;
+
+
+        //create a write request to the metadata cache//ignore for now, #TODO
+      }
+
+      ////////////////////////metadata cache cycle/////////////////////////////////////////////////////
+      //metadata fill response
+      if (m_metadata_cache->access_ready() && !m_from_metadata_cache_queue->full()){
+        mem_fetch *mf = m_metadata_cache->next_access();
+        if ((mf->get_access_type() == L2_WR_ALLOC_R) || (mf->get_access_type() == GLOBAL_ACC_R)){
+          m_from_metadata_cache_queue->push(mf);
+        }
+        else{
+          delete mf;
+        }
+      }
+      //DRAM to metadata cache queue
+      if (!m_dram_to_metadata_cache_queue->empty()){
+        mem_fetch *mf = m_dram_to_metadata_cache_queue->top();
+        if (m_metadata_cache->waiting_for_fill(mf)){
+          m_metadata_cache->fill(mf,m_gpu->gpu_sim_cycle+m_gpu->gpu_tot_sim_cycle);
+          m_dram_to_metadata_cache_queue->pop();
+        }
+        else{
+          m_dram_to_metadata_cache_queue->pop();
+        }
+      }
+
+      //prior meatadata misses inserted into m_huffman_to_dram_queue
+      m_metadata_cache->cycle();
+
+      //new metadata cache access
+      if (!m_to_metadata_cache_queue->empty()){
+        mem_fetch *mf = m_to_metadata_cache_queue->top();
+        bool outputfull = m_from_metadata_cache_queue->full();
+        bool portfree = m_metadata_cache->data_port_free();
+        if (!outputfull && portfree){
+          std::list<cache_event> events;
+          enum cache_request_status status = 
+          m_metadata_cache->access(mf->get_addr(),mf
+                                   m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle,
+                                   events);
+          bool write_sent = was_write_sent(events);
+          bool read_sent = was_read_sent(events);
+          if (status == HIT){
+            if(!write_sent){
+              if (mf->get_access_type() == L2_WR_ALLOC_R || mf->get_access_type() == L2_WRBK_ACC){
+                m_from_metadata_cache_queue->push(mf);
+              }
+              else{
+                //#TODO: incomplete, have not support other read operations
+                assert(!write_sent);
+              }
+            }
+            else{
+              //#TODO: incomplete, have not support write operations to metadata cache
+              assert(write_sent);
+            }
+            m_to_metadata_cache_queue->pop();
+          }
+          else if (status != RESERVATION_FAIL){
+            //#TODO: incomplete, have not support write operations
+            assert(status == MISS);
+            m_to_metadata_cache_queue->pop();
+          }
+          else{
+            //metadata cache lock up
+            assert(status == RESERVATION_FAIL);
+          }
+
+      
+        }
+      }
+      
+  
+
+
+      //from huffman to DRAM latency queue
+      if(!m_huffman_to_dram_queue->empty()){
+        mem_fetch *mf = m_huffman_to_dram_queue->top();
+        m_huffman_to_dram_queue->pop();
+        MEMPART_DPRINTF("Issue mem_fetch request %p from sub partition %d to dram\n", mf,spid);
+        dram_delay_t d;
+        d.req = mf;
+        d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
+                        m_config->dram_latency;
+        m_dram_latency_queue.push_back(d);
+        mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
+                        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
+  
+
+
+  }
+  /////////////////////huffman code logic ends/////////////////////////////////////////////////////
+
+  ////////////////////////sampling phase starts/////////////////////////////////////////////////////
+  else{ 
+    //else: sampling phase
+    //check if the request is a read request
+    if (mf->get_access_type() == GLOBAL_ACC_R | mf->get_access_type() == L2_WR_ALLOC_R){
+      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf->get_addr())   
+      unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
+      for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
+              m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+              char x = data[i];
+          //fprintf(stdout, " %u", x & 0x00FF);
+        }
+        m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
+        delete[] data;
+        data = nullptr;
+    }
+    MEMPART_DPRINTF(
+    "Issue mem_fetch request %p from sub partition %d to dram\n", mf,
+    spid);
+    dram_delay_t d;
+    d.req = mf;
+    d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
+                    m_config->dram_latency;
+    m_dram_latency_queue.push_back(d);
+    mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
+                    m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
+
+
+    ////////////////////////sampling phase ends/////////////////////////////////////////////////////
+
+
+  }
+
+
+
+
 
   // DRAM latency queue
   if (!m_dram_latency_queue.empty() &&
@@ -380,7 +708,14 @@ void memory_partition_unit::dram_cycle() {
       !m_dram->full(m_dram_latency_queue.front().req->is_write())) {
     mem_fetch *mf = m_dram_latency_queue.front().req;
     m_dram_latency_queue.pop_front();
-    m_dram->push(mf);
+    //Sitao: if it is metadata cache request, directly return without going to DRAM (model as fixed latency due to problem of metadata addr mapping)
+    //we do not deal with write request for metadata cache as we only allows read request at the moment
+    if (mf->is_meta_data_request){
+      m_dram_to_metadata_cache_queue->push(mf);
+    }
+    else{
+      m_dram->push(mf);
+    }
   }
 }
 
@@ -576,7 +911,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
                             mf->get_addr(), status);
 
         if (status == HIT) {
-          if (!write_sent) {
+          if (!write_sent) { //write allocate request is sent and we need to wait for reply from lower level memory, not reply it now
             
           /*new_addr_type probe_pointer = mf->get_addr();
             unsigned char *data = new unsigned char[32];
@@ -644,6 +979,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
               m_gpu->m_similarity_cache->check_and_update(data_string);
             }
             };
+
           if (mf->is_write() &&
               (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
                m_config->m_L2_config.m_write_alloc_policy ==
