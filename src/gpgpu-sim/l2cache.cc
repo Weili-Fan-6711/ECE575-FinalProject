@@ -463,6 +463,7 @@ void memory_partition_unit::dram_cycle() {
     //generate huffman codebook
     m_huffman_codebook->generate_huffman_codes();
     m_gpu->huffman_enabled = true;
+    printf("\n=========================huffman codebook generated=========================\n");
     }
       /////////////////////huffman code logic starts////////////////////////////////////////
       if (mf_to_be_classified!=nullptr){
