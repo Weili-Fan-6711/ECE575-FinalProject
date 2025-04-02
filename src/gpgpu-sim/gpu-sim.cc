@@ -1406,7 +1406,13 @@ void gpgpu_sim::gpu_print_stat() {
   }
   printf("\nsimialrity cache size = %d * %d partitions, total number of non-zero request = %d, total number of hit = %d\n",m_memory_partition_unit[0]->get_similarity_cache()->get_size(),
         m_memory_config->m_n_mem,total_request,total_hit);
- 
+
+  printf("\n========= compression stats =========\n");
+  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+    compression_stats stats = m_memory_partition_unit[i]->m_compression_stats;
+    printf("m_partition %d: total number of compression requests = %lld, total raw compression ratio = %lf, total effective compression ratio = %lf\n",i,stats.total_compression_requests,stats.total_raw_compression_ratio,stats.total_effective_compression_ratio);
+  }
+
 
 
 
