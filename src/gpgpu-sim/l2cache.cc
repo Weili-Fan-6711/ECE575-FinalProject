@@ -613,7 +613,7 @@ void memory_partition_unit::dram_cycle() {
         bool portfree = m_metadata_cache->data_port_free();
         if (!outputfull && portfree){
           std::list<cache_event> events;
-          enum cache_request_status status = m_metadata_cache->access(mf->get_addr(),mf
+          enum cache_request_status status = m_metadata_cache->access(mf->get_addr(),mf,
                                    m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle,
                                    events);
           bool write_sent = was_write_sent(events);
