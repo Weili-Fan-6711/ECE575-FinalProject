@@ -117,7 +117,7 @@ void frequency_value_table::evict_entries() {
     
     // Sort by frequency (ascending)
     std::sort(freq_pairs.begin(), freq_pairs.end(), 
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+              [](const std::pair<uint64_t, uint64_t>& a, const std::pair<uint64_t, uint64_t>& b) { return a.second < b.second; });
     
     // Clear the map
     m_frequency_map.clear();
@@ -162,7 +162,7 @@ std::vector<std::pair<uint64_t, uint64_t>> frequency_value_table::get_sorted_fre
     
     // Sort by frequency (ascending)
     std::sort(freq_pairs.begin(), freq_pairs.end(), 
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+              [](const std::pair<uint64_t, uint64_t>& a, const std::pair<uint64_t, uint64_t>& b) { return a.second < b.second; });
     
     return freq_pairs;
 }
@@ -179,7 +179,7 @@ std::vector<std::pair<uint64_t, uint64_t>> frequency_value_table::get_top_freque
     
     // Sort by frequency (descending - highest frequency first)
     std::sort(freq_pairs.begin(), freq_pairs.end(), 
-              [](const auto& a, const auto& b) { return a.second > b.second; });
+              [](const std::pair<uint64_t, uint64_t>& a, const std::pair<uint64_t, uint64_t>& b) { return a.second > b.second; });
     
     // If we have more entries than final_table_size, trim the vector
     if (freq_pairs.size() > m_final_table_size) {
@@ -495,7 +495,7 @@ void huffman_codebook::make_canonical_codes() {
     
     // Sort by code length, then by symbol value for deterministic output
     std::sort(code_lengths.begin(), code_lengths.end(), 
-              [](const auto& a, const auto& b) {
+              [](const std::pair<uint64_t, size_t>& a, const std::pair<uint64_t, size_t>& b) {
                   return a.second < b.second || (a.second == b.second && a.first < b.first);
               });
     
@@ -548,7 +548,7 @@ size_t huffman_codebook::generate_huffman_codes() {
     
     // For Huffman coding, we need frequencies in ascending order
     std::sort(freq_pairs.begin(), freq_pairs.end(),
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+              [](const std::pair<uint64_t, uint64_t>& a, const std::pair<uint64_t, uint64_t>& b) { return a.second < b.second; });
     
     // Build the Huffman tree
     auto root = build_tree(freq_pairs);
