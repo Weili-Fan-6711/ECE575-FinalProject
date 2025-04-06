@@ -245,6 +245,9 @@ private:
     // Generate codes from the Huffman tree (non-canonical)
     void generate_codes_from_tree(std::shared_ptr<huffman_node> node, std::vector<bool>& code);
     
+    // Shannon-Fano encoding helper function (recursive)
+    void shannon_fano_encode(std::vector<std::pair<uint64_t, uint64_t>>& symbols, size_t start, size_t end, std::vector<bool> code);
+    
     // Convert to canonical Huffman codes
     void make_canonical_codes();
     
@@ -311,6 +314,14 @@ public:
      * @param mag Memory access granularity in bytes (default 32)
      */
     huffman_codebook(size_t checking_table_size, size_t final_table_size, size_t symbol_length, size_t mag = 32);
+    
+    /**
+     * Generate Shannon-Fano codes based on the current frequency table
+     * Uses get_top_frequencies() to focus on the most frequent symbols
+     * 
+     * @return Number of codes generated
+     */
+    size_t generate_shannon_fano_codes();
     
     /**
      * Generate Huffman codes based on the current frequency table

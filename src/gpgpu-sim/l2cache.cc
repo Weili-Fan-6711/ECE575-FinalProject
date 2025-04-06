@@ -544,7 +544,8 @@ void memory_partition_unit::dram_cycle() {
       printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     if (m_huffman_enabled == false){
     //generate huffman codebook
-    m_huffman_codebook->generate_huffman_codes();
+   //m_huffman_codebook->generate_huffman_codes();
+    m_huffman_codebook->generate_shannon_fano_codes();
     m_huffman_enabled = true;
     printf("\n=========================huffman codebook generated=========================\n");
     }

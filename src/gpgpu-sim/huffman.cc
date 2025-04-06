@@ -563,6 +563,106 @@ size_t huffman_codebook::generate_huffman_codes() {
     return m_codes.size();
 }
 
+// Generate Shannon-Fano codes
+size_t huffman_codebook::generate_shannon_fano_codes() {
+    // Clear existing codes
+    m_codes.clear();
+    m_max_code_length = 0;
+    
+    // Get the top frequencies
+    auto freq_pairs = freq_table.get_top_frequencies();
+    
+    // If no frequencies, return
+    if (freq_pairs.empty()) {
+        return 0;
+    }
+    
+    // For Shannon-Fano coding, we need frequencies in descending order (highest first)
+    // (they're already sorted by get_top_frequencies())
+    
+    // Start the recursive Shannon-Fano encoding
+    std::vector<bool> code;
+    shannon_fano_encode(freq_pairs, 0, freq_pairs.size() - 1, code);
+    
+    // Convert to canonical codes for better compression
+    make_canonical_codes();
+    
+    return m_codes.size();
+}
+
+// Shannon-Fano encoding helper function (recursive)
+void huffman_codebook::shannon_fano_encode(
+    std::vector<std::pair<uint64_t, uint64_t>>& symbols, 
+    size_t start, size_t end, 
+    std::vector<bool> code) {
+    
+    // Base case: only one symbol in the range
+    if (start == end) {
+        uint64_t symbol = symbols[start].first;
+        m_codes[symbol] = code_entry(code);
+        m_max_code_length = std::max(m_max_code_length, code.size());
+        return;
+    }
+    
+    // Base case: two symbols - assign 0 to first, 1 to second
+    if (start + 1 == end) {
+        // First symbol gets code + 0
+        std::vector<bool> code_a = code;
+        code_a.push_back(false);
+        uint64_t symbol_a = symbols[start].first;
+        m_codes[symbol_a] = code_entry(code_a);
+        m_max_code_length = std::max(m_max_code_length, code_a.size());
+        
+        // Second symbol gets code + 1
+        std::vector<bool> code_b = code;
+        code_b.push_back(true);
+        uint64_t symbol_b = symbols[end].first;
+        m_codes[symbol_b] = code_entry(code_b);
+        m_max_code_length = std::max(m_max_code_length, code_b.size());
+        
+        return;
+    }
+    
+    // Compute total frequency in the range
+    uint64_t total_freq = 0;
+    for (size_t i = start; i <= end; ++i) {
+        total_freq += symbols[i].second;
+    }
+    
+    // Find division point that makes the two parts as close as possible in total frequency
+    uint64_t curr_freq = 0;
+    size_t split_point = start;
+    
+    for (size_t i = start; i <= end; ++i) {
+        uint64_t next_freq = curr_freq + symbols[i].second;
+        
+        // If adding this symbol gets us closer to half the total, update the split point
+        if (std::abs(static_cast<int64_t>(next_freq * 2 - total_freq)) <= 
+            std::abs(static_cast<int64_t>(curr_freq * 2 - total_freq))) {
+            curr_freq = next_freq;
+            split_point = i;
+        } else {
+            // Once we pass the halfway mark, we've found our split
+            break;
+        }
+    }
+    
+    // Ensure we didn't put everything in one group
+    if (split_point == end) {
+        split_point = start + (end - start) / 2;
+    }
+    
+    // Recursive call for first group (code + 0)
+    std::vector<bool> code_left = code;
+    code_left.push_back(false);
+    shannon_fano_encode(symbols, start, split_point, code_left);
+    
+    // Recursive call for second group (code + 1)
+    std::vector<bool> code_right = code;
+    code_right.push_back(true);
+    shannon_fano_encode(symbols, split_point + 1, end, code_right);
+}
+
 // Check if a symbol has a code
 bool huffman_codebook::has_code(uint64_t symbol) const {
     return m_codes.find(symbol) != m_codes.end();
