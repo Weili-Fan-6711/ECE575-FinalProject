@@ -373,7 +373,7 @@ void memory_partition_unit::dram_cycle() {
       m_dram->return_queue_pop();
     }
     else {
-      if (mf_return->get_access_type() == GLOBAL_ACC_R || mf_return->get_access_type() == L2_WR_ALLOC_R){
+      if ((mf_return->get_access_type() == GLOBAL_ACC_R || mf_return->get_access_type() == L2_WR_ALLOC_R)&&m_huffman_enabled==true){
       //decompressor logic
         if (m_decompressor_latency_queue.size() <= ((PWD_TOTAL_NUMBER_OF_DECOMPRESSOR + m_config->m_n_mem - 1) / m_config->m_n_mem)){
           //reuse dram_delay_t
@@ -403,6 +403,8 @@ void memory_partition_unit::dram_cycle() {
         m_decompressor_latency_queue.front().ready_cycle)){
       mem_fetch *mf_return = m_decompressor_latency_queue.front().req;
       m_decompressor_latency_queue.pop_front();
+      if (mf_return->m_compressed){
+      mf_return->set_data_size(mf_return->m_original_size);}
       m_decompressor_to_L2_queue->push(mf_return);
     }
     
@@ -569,8 +571,8 @@ void memory_partition_unit::dram_cycle() {
         mem_fetch *mf = m_L2_to_metadata_translater_read_queue->top();
         m_L2_to_metadata_translater_read_queue->pop();
         mf->m_compressed = true;
-        mf->m_original_addr = mf->get_addr();
         mf->m_original_size = mf->get_data_size();
+        mf->m_original_addr = mf->get_addr();
         mf->m_metadata_addr = mf->m_original_addr >> 7;
         mf->set_addr(mf->m_metadata_addr);
         mf->is_meta_data_request = true;
@@ -640,7 +642,7 @@ void memory_partition_unit::dram_cycle() {
           m_compression_stats.total_compression_requests++;
             
           //assert(info != NULL);
-          //mf->set_data_size(std::min<unsigned int>(outcome.burst_size * MAG, static_cast<unsigned int>(MEMORY_REQUEST_SIZE)));
+          mf->set_data_size(std::min<unsigned int>(outcome.burst_size * MAG, static_cast<unsigned int>(MEMORY_REQUEST_SIZE)));
           //push the altered request to huffman to DRAM (latency) queue
           mf->set_status(IN_HUFFMAN_META_DATA_CACHE,
             m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
