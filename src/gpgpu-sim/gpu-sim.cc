@@ -1294,13 +1294,13 @@ void gpgpu_sim::gpu_print_stat() {
   // partiton_replys_in_parallel); printf("partiton_replys_in_parallel_total =
   // %lld\n", partiton_replys_in_parallel_total );
   printf("L2_BW  = %12.4f GB/Sec\n",
-         ((float)(partiton_replys_in_parallel * 32) /
+         ((float)(partiton_replys_in_parallel * SECTOR_SIZE) /
           (gpu_sim_cycle * m_config.icnt_period)) /
              1000000000);
   printf("L2_BW_total  = %12.4f GB/Sec\n",
          ((float)((partiton_replys_in_parallel +
                    partiton_replys_in_parallel_total) *
-                  32) /
+                   SECTOR_SIZE) /
           ((gpu_tot_sim_cycle + gpu_sim_cycle) * m_config.icnt_period)) /
              1000000000);
 
@@ -1392,6 +1392,7 @@ void gpgpu_sim::gpu_print_stat() {
   printf("total number non-zero request = %d, number of value repeated = %d\n",total_request,num_hit);*/
 
   //Sitao: print similarity cache stat
+  /*
   printf("\n========= similarity cache stats =========\n");
   int total_request = 0;
   int total_hit = 0;
@@ -1405,7 +1406,10 @@ void gpgpu_sim::gpu_print_stat() {
     printf("memory partition %d: number of non-zero request = %d, number of hit = %d\n",i,num_request,num_hit);
   }
   printf("\nsimialrity cache size = %d * %d partitions, total number of non-zero request = %d, total number of hit = %d\n",m_memory_partition_unit[0]->get_similarity_cache()->get_size(),
-        m_memory_config->m_n_mem,total_request,total_hit);
+        m_memory_config->m_n_mem,total_request,total_hit);*/
+
+
+
 
   printf("\n========= compression stats =========\n");
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
@@ -1855,10 +1859,11 @@ void gpgpu_sim::cycle() {
       m_memory_sub_partition[i]->accumulate_L2cache_stats(
           m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
     }
+    /*
     //Sitao: similarity cache update
     for (unsigned i = 0; i<m_memory_config->m_n_mem; i++){
       m_memory_partition_unit[i]->similarity_cache_cycle();
-    }
+    }*/
   }
   partiton_reqs_in_parallel += partiton_reqs_in_parallel_per_cycle;
   if (partiton_reqs_in_parallel_per_cycle > 0) {
@@ -2034,11 +2039,11 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
     // 32
     //== 0);
 
-    for (unsigned counter = 0; counter < count; counter += 32) {
+    for (unsigned counter = 0; counter < count; counter += SECTOR_SIZE) {
       const unsigned wr_addr = dst_start_addr + counter;
       addrdec_t raw_addr;
       mem_access_sector_mask_t mask;
-      mask.set(wr_addr % 128 / 32);
+      mask.set(wr_addr % MAX_MEMORY_ACCESS_SIZE / SECTOR_SIZE);
       m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
       const unsigned partition_id =
           raw_addr.sub_partition /

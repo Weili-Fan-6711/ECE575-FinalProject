@@ -136,7 +136,7 @@ class mem_fetch {
   new_addr_type m_metadata_addr;
   unsigned m_original_size;
   unsigned m_compressed_size;
-  bool is_meta_data_request = false;
+  bool is_meta_data_request;
 
 
  private:

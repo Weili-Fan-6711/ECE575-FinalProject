@@ -675,8 +675,7 @@ class gpgpu_sim : public gpgpu_t {
   void change_cache_config(FuncCache cache_config);
   void set_cache_config(std::string kernel_name);
 
-  //Sitao: huffman
-  bool huffman_enabled = false;
+  
 
   // Jin: functional simulation for CDP
  private:

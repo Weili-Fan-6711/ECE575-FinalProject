@@ -532,7 +532,7 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
         new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[access];
         unsigned block_address = line_size_based_tag_func(addr, segment_size);
         unsigned chunk =
-            (addr & 127) / 32;  // which 32-byte chunk within in a 128-byte
+            (addr & 127) / SECTOR_SIZE;  // which 32-byte chunk within in a 128-byte
                                 // chunk does this thread access?
         transaction_info &info = subwarp_transactions[block_address];
 
@@ -687,7 +687,7 @@ void warp_inst_t::memory_coalescing_arch_reduce_and_send(
     new_addr_type addr, unsigned segment_size) {
   assert((addr & (segment_size - 1)) == 0);
 
-  const std::bitset<4> &q = info.chunks;
+  const std::bitset<SECTOR_CHUNCK_SIZE> &q = info.chunks;
   assert(q.count() >= 1);
   std::bitset<2> h;  // halves (used to check if 64 byte segment can be
                      // compressed into a single 32 byte segment)

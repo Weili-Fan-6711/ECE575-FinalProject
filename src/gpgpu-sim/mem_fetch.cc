@@ -44,6 +44,8 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
 {
   m_request_uid = sm_next_mf_request_uid++;
   m_access = access;
+  m_compressed = false;
+  is_meta_data_request = false;
   if (inst) {
     m_inst = *inst;
     assert(wid == m_inst.warp_id());

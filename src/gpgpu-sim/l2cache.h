@@ -123,6 +123,8 @@ class memory_partition_unit {
   class gpgpu_sim *get_mgpu() const {
     return m_gpu;
   }
+  //Sitao: huffman
+  bool m_huffman_enabled = false;
   //Sitao
   class similarity_cache *get_similarity_cache() const {
     return m_similarity_cache;

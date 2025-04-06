@@ -1057,7 +1057,7 @@ class warp_inst_t : public inst_t {
     }
   }
   struct transaction_info {
-    std::bitset<4> chunks;  // bitmask: 32-byte chunks accessed
+    std::bitset<SECTOR_CHUNCK_SIZE> chunks;  // bitmask: 32-byte chunks accessed
     mem_access_byte_mask_t bytes;
     active_mask_t active;  // threads in this transaction
 
