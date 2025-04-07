@@ -324,6 +324,15 @@ public:
     size_t generate_shannon_fano_codes();
     
     /**
+     * Generate Shannon codes based on the current frequency table
+     * Assigns code lengths based on -log2(probability) and creates canonical prefix codes
+     * Uses get_top_frequencies() to focus on the most frequent symbols
+     * 
+     * @return Number of codes generated
+     */
+    size_t generate_shannon_codes();
+    
+    /**
      * Generate Huffman codes based on the current frequency table
      * Uses get_top_frequencies() to focus on the most frequent symbols
      * 

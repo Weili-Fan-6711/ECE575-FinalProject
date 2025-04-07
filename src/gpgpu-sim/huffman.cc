@@ -590,6 +590,91 @@ size_t huffman_codebook::generate_shannon_fano_codes() {
     return m_codes.size();
 }
 
+// Generate Shannon codes using information theory approach
+size_t huffman_codebook::generate_shannon_codes() {
+    // Clear existing codes
+    m_codes.clear();
+    m_max_code_length = 0;
+    
+    // Get the top frequencies
+    auto freq_pairs = freq_table.get_top_frequencies();
+    
+    // If no frequencies, return
+    if (freq_pairs.empty()) {
+        return 0;
+    }
+    
+    // Calculate total frequency to find probabilities
+    uint64_t total_frequency = 0;
+    for (const auto& pair : freq_pairs) {
+        total_frequency += pair.second;
+    }
+    
+    // Create a vector to store symbol and its assigned code length
+    std::vector<std::pair<uint64_t, size_t>> code_lengths;
+    
+    // Calculate code length for each symbol based on Shannon's formula: ceil(-log2(p))
+    for (const auto& pair : freq_pairs) {
+        uint64_t symbol = pair.first;
+        uint64_t frequency = pair.second;
+        
+        // Calculate probability
+        double probability = static_cast<double>(frequency) / total_frequency;
+        
+        // Calculate optimal code length: -log2(probability), rounded up
+        size_t code_length = static_cast<size_t>(std::ceil(-std::log2(probability)));
+        
+        // Ensure a minimum code length of 1 bit
+        code_length = std::max(code_length, static_cast<size_t>(1));
+        
+        // Track the maximum code length
+        m_max_code_length = std::max(m_max_code_length, code_length);
+        
+        // Store symbol and its code length
+        code_lengths.push_back(std::make_pair(symbol, code_length));
+    }
+    
+    // Sort by code length, then by symbol value (for deterministic output)
+    std::sort(code_lengths.begin(), code_lengths.end(),
+              [](const std::pair<uint64_t, size_t>& a, const std::pair<uint64_t, size_t>& b) {
+                  return a.second < b.second || (a.second == b.second && a.first < b.first);
+              });
+    
+    // Generate canonical codes (like Huffman canonical codes)
+    std::unordered_map<uint64_t, code_entry> canonical_codes;
+    size_t code = 0;
+    size_t prev_len = code_lengths[0].second;
+    
+    for (const auto& pair : code_lengths) {
+        uint64_t symbol = pair.first;
+        size_t len = pair.second;
+        
+        // If moving to a longer code length, shift left
+        code <<= (len - prev_len);
+        prev_len = len;
+        
+        // Create the code bits
+        std::vector<bool> bits;
+        bits.reserve(len);
+        
+        // Convert integer code to bit vector (MSB first)
+        for (size_t i = 0; i < len; ++i) {
+            bits.push_back((code & (1ULL << (len - 1 - i))) != 0);
+        }
+        
+        // Store the canonical code
+        canonical_codes[symbol] = code_entry(bits);
+        
+        // Increment code for next symbol
+        code++;
+    }
+    
+    // Use the generated codes
+    m_codes = std::move(canonical_codes);
+    
+    return m_codes.size();
+}
+
 // Shannon-Fano encoding helper function (recursive)
 void huffman_codebook::shannon_fano_encode(
     std::vector<std::pair<uint64_t, uint64_t>>& symbols, 
