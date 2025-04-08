@@ -81,6 +81,11 @@ class compression_stats{
    long long total_compression_requests = 0;
    double total_raw_compression_ratio = 0;
    double total_effective_compression_ratio = 0;
+   void update_stats(double raw_compression_ratio, double effective_compression_ratio){
+    total_raw_compression_ratio = (total_raw_compression_ratio*total_compression_requests + raw_compression_ratio)/(total_compression_requests + 1);
+    total_effective_compression_ratio = (total_effective_compression_ratio*total_compression_requests + effective_compression_ratio)/(total_compression_requests + 1);
+    total_compression_requests++;
+   }
 };
 class memory_partition_unit {
  public:
@@ -164,6 +169,7 @@ class memory_partition_unit {
   class l2_cache *m_metadata_cache;
   std::unordered_map<new_addr_type, compression_info> m_compression_storage;
   compression_stats m_compression_stats;
+  std::vector<compression_stats*> m_interval_compression_stats;
 
 
   //Sitao:interface for m_compression_storage

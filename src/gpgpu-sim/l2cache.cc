@@ -66,8 +66,10 @@
 #define HUFFMAN_SYMBOL_LENGTH 16 //NOTE: in bits
 #define MAG 32 // Memory Access Granularity in bytes
 #define MEMORY_REQUEST_SIZE 128 //in byte
-#define SAMPLING_DURATION 30000 //cycle
+#define SAMPLING_DURATION 10000 //cycle
 #define HUFFMAN_TABLE_SIZE 1000
+#define DYNAMIC_UPDATE_FLAG 1
+#define DYNAMIC_UPDATE_INTERVAL 5000 //cycle
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
                                          mem_access_type type, unsigned size,
@@ -171,6 +173,9 @@ memory_partition_unit::~memory_partition_unit() {
   delete m_metadata_allocator;
   delete m_metadata_interface;
   delete m_decompressor_to_L2_queue;
+  for (auto stat : m_interval_compression_stats) {
+    delete stat;
+  }
 }
 
 memory_partition_unit::arbitration_metadata::arbitration_metadata(
@@ -540,18 +545,46 @@ void memory_partition_unit::dram_cycle() {
   //Sitao's modification: going into huffman compressor
   if (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >= SAMPLING_DURATION)//20 Million cycles
   { 
+    //logic for dynamic update
+    if (DYNAMIC_UPDATE_FLAG == 1){
+      //continue to sample
+      if (mf_to_be_classified!=nullptr){
+        if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R || mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
+        new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr());   
+        unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
+        for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
+                m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
+                //char x = data[i];
+            //fprintf(stdout, " %u", x & 0x00FF);
+          }
+          m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
+          delete[] data;
+          data = nullptr;
+        }
+      }
+
+      //update the codebook
+      if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true)){
+        m_huffman_codebook->generate_shannon_codes();
+        printf("\n=========================huffman codebook generated=========================\n");
+        m_interval_compression_stats.push_back(new compression_stats());
+      }
+    }
+
+    //Sitao: Huffman code logic initial generation
     if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%5000 == 0 ){
       printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     if (m_huffman_enabled == false){
-    //generate huffman codebook
+    //generate initial huffman codebook 
    //m_huffman_codebook->generate_huffman_codes();
     //m_huffman_codebook->generate_shannon_fano_codes();
     m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
     printf("\n=========================huffman codebook generated=========================\n");
     }
-      /////////////////////huffman code logic starts////////////////////////////////////////
-      if (mf_to_be_classified!=nullptr){
+
+    /////////////////////huffman code logic starts////////////////////////////////////////
+    if (mf_to_be_classified!=nullptr){
       if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R | mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
 
         //L2_to_metadata_translater_read queue push
@@ -637,11 +670,10 @@ void memory_partition_unit::dram_cycle() {
           info.burst_size = outcome.burst_size;
           update_compression_storage(m_config->m_L2_config.block_addr(mf->get_addr()), info);
           //gathering statistics, weighted average
-          m_compression_stats.total_raw_compression_ratio = 
-          (m_compression_stats.total_raw_compression_ratio*m_compression_stats.total_compression_requests + outcome.raw_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
-          m_compression_stats.total_effective_compression_ratio = 
-          (m_compression_stats.total_effective_compression_ratio*m_compression_stats.total_compression_requests + outcome.effective_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
-          m_compression_stats.total_compression_requests++;
+          m_compression_stats.update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
+
+          //update interval-based stats
+          m_interval_compression_stats.back()->update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
             
           //assert(info != NULL);
           mf->set_data_size(std::min<unsigned int>(outcome.burst_size * MAG, static_cast<unsigned int>(MEMORY_REQUEST_SIZE)));
@@ -698,11 +730,9 @@ void memory_partition_unit::dram_cycle() {
         info.burst_size = outcome.burst_size;
         update_compression_storage(m_config->m_L2_config.block_addr(mf->get_addr()), info);
         //gathering statistics, weighted average
-        m_compression_stats.total_raw_compression_ratio = 
-        (m_compression_stats.total_raw_compression_ratio*m_compression_stats.total_compression_requests + outcome.raw_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
-        m_compression_stats.total_effective_compression_ratio = 
-        (m_compression_stats.total_effective_compression_ratio*m_compression_stats.total_compression_requests + outcome.effective_compression_ratio)/(m_compression_stats.total_compression_requests + 1);
-        m_compression_stats.total_compression_requests++;
+        m_compression_stats.update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
+        //update interval-based stats
+        m_interval_compression_stats.back()->update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
 
 
         //create a write request to the metadata cache//ignore for now, #TODO
