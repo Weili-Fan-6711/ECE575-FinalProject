@@ -580,6 +580,7 @@ void memory_partition_unit::dram_cycle() {
     //m_huffman_codebook->generate_shannon_fano_codes();
     m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
+    m_interval_compression_stats.push_back(new compression_stats());
     printf("\n=========================huffman codebook generated=========================\n");
     }
 
@@ -673,6 +674,7 @@ void memory_partition_unit::dram_cycle() {
           m_compression_stats.update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
 
           //update interval-based stats
+        
           m_interval_compression_stats.back()->update_stats(outcome.raw_compression_ratio, outcome.effective_compression_ratio);
             
           //assert(info != NULL);
