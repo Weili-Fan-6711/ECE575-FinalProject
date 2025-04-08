@@ -1422,8 +1422,8 @@ void gpgpu_sim::gpu_print_stat() {
     average_effective_compression_ratio += stats.total_effective_compression_ratio;
     printf("m_partition %d: total number of compression requests = %lld, total raw compression ratio = %lf, total effective compression ratio = %lf\n",i,stats.total_compression_requests,stats.total_raw_compression_ratio,stats.total_effective_compression_ratio);
   }
-  average_raw_compression_ratio /= total_compression_requests;
-  average_effective_compression_ratio /= total_compression_requests;
+  average_raw_compression_ratio /= m_memory_config->m_n_mem;
+  average_effective_compression_ratio /= m_memory_config->m_n_mem;
   printf("\n total number of compression requests = %lld, average raw compression ratio = %lf, average effective compression ratio = %lf\n",total_compression_requests,average_raw_compression_ratio,average_effective_compression_ratio);
 
 

@@ -545,7 +545,8 @@ void memory_partition_unit::dram_cycle() {
     if (m_huffman_enabled == false){
     //generate huffman codebook
    //m_huffman_codebook->generate_huffman_codes();
-    m_huffman_codebook->generate_shannon_fano_codes();
+    //m_huffman_codebook->generate_shannon_fano_codes();
+    m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
     printf("\n=========================huffman codebook generated=========================\n");
     }
