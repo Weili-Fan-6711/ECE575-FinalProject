@@ -68,11 +68,11 @@
 #define MEMORY_REQUEST_SIZE 128 //in byte
 #define HUFFMAN_TABLE_SIZE 1000
 #define DYNAMIC_UPDATE_FLAG 1
-#define DYNAMIC_UPDATE_INTERVAL 5000 //cycle
-#define SAMPLING_DURATION 10000 //cycle
+#define DYNAMIC_UPDATE_INTERVAL 5000//cycle
+#define SAMPLING_DURATION 15000 //cycle
 
-#define SAMPLING_DURATION_INSN 40000000 //instructions
-#define UPDATE_INTERVAL_INSN 2000000 //instructions
+#define SAMPLING_DURATION_INSN 50000000 //instructions
+#define UPDATE_INTERVAL_INSN 20000000 //instructions
 
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
@@ -572,25 +572,33 @@ void memory_partition_unit::dram_cycle() {
       if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
       //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
       {
-        //m_huffman_codebook->generate_shannon_codes();
-        m_huffman_codebook->generate_huffman_codes();
+        m_huffman_codebook->generate_shannon_codes();
+        //m_huffman_codebook->generate_huffman_codes();
         //m_huffman_codebook->generate_shannon_fano_codes();
-        printf("\n=========================huffman codebook updated=========================\n");
+        //printf("\n=========================huffman codebook updated=========================\n");
+        m_interval_compression_stats.push_back(new compression_stats());
+      }
+    }
+    else{
+      if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
+      //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
+      {
         m_interval_compression_stats.push_back(new compression_stats());
       }
     }
 
     //Sitao: Huffman code logic initial generation
-    if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%5000 == 0 ){
-      printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
+    // if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%100000 == 0 ){
+    //   printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     if (m_huffman_enabled == false){
     //generate initial huffman codebook 
-    m_huffman_codebook->generate_huffman_codes();
+    //m_huffman_codebook->generate_huffman_codes();
     //m_huffman_codebook->generate_shannon_fano_codes();
-    //m_huffman_codebook->generate_shannon_codes();
+    m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
     m_interval_compression_stats.push_back(new compression_stats());
-    printf("\n=========================huffman codebook generated=========================\n");
+    //printf("\n=========================huffman codebook generated=========================\n");
+    m_cycle_huffman_generated = (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
     }
 
     /////////////////////huffman code logic starts////////////////////////////////////////
@@ -849,8 +857,8 @@ void memory_partition_unit::dram_cycle() {
 
   ////////////////////////sampling phase starts/////////////////////////////////////////////////////
   else{ 
-    if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%5000 == 0 ){
-    printf("\n sampling phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
+    // if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%50000 == 0 ){
+    // printf("\n sampling phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     //else: sampling phase
     //check if the request is a read request
     if (mf_to_be_classified!=nullptr){

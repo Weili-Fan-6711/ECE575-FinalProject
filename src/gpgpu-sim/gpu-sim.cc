@@ -1420,11 +1420,14 @@ void gpgpu_sim::gpu_print_stat() {
     total_compression_requests += stats.total_compression_requests;
     average_raw_compression_ratio += stats.total_raw_compression_ratio;
     average_effective_compression_ratio += stats.total_effective_compression_ratio;
+    printf("\nm_cycle_huffman_generated = %d\n",m_memory_partition_unit[i]->m_cycle_huffman_generated);
     printf("\n m_partition %d: total number of compression requests = %lld, total raw compression ratio = %lf, total effective compression ratio = %lf\n",i,stats.total_compression_requests,stats.total_raw_compression_ratio,stats.total_effective_compression_ratio);
     //print interval-based stats
-    int interval_num = 0;
-    for (auto interval_stat : m_memory_partition_unit[i]->m_interval_compression_stats) {
-      printf(" -- interval %d: number of compression requests = %lld, raw compression ratio = %lf, effective compression ratio = %lf\n",interval_num++,interval_stat->total_compression_requests,interval_stat->total_raw_compression_ratio,interval_stat->total_effective_compression_ratio);
+    if (i == 0){
+      int interval_num = 0;
+      for (auto interval_stat : m_memory_partition_unit[i]->m_interval_compression_stats) {
+        printf(" -- interval %d: number of compression requests = %lld, raw compression ratio = %lf, effective compression ratio = %lf\n",interval_num++,interval_stat->total_compression_requests,interval_stat->total_raw_compression_ratio,interval_stat->total_effective_compression_ratio);
+      }
     }
   }
   average_raw_compression_ratio /= m_memory_config->m_n_mem;

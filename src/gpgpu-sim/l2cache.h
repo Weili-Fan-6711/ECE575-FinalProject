@@ -170,6 +170,8 @@ class memory_partition_unit {
   std::unordered_map<new_addr_type, compression_info> m_compression_storage;
   compression_stats m_compression_stats;
   std::vector<compression_stats*> m_interval_compression_stats;
+  unsigned int m_cycle_huffman_generated = 0;
+  
 
 
   //Sitao:interface for m_compression_storage
