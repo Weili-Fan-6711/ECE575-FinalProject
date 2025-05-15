@@ -395,12 +395,23 @@ compress_outcome huffman_codebook::compressor::compress_data_block(
     // Calculate the burst size (how many MAG units)
     result.burst_size = result.mag_compressed_size_bytes / m_codebook.get_mag();
     
+    
+
     // Calculate the effective compression ratio
     if (result.mag_compressed_size_bytes > 0) {
         result.effective_compression_ratio = 
             static_cast<double>(size) / result.mag_compressed_size_bytes;
     } else {
         result.effective_compression_ratio = 1.0;
+    }
+
+    if (result.burst_size > 3) {
+        //store uncompressed size
+        result.burst_size = 4;
+        result.mag_compressed_size_bytes = 4 * m_codebook.get_mag();
+        result.effective_compression_ratio = 1.0;
+        result.raw_compression_ratio = 1.0;
+        result.raw_compressed_size_bits = original_size_bits;
     }
     
     return result;

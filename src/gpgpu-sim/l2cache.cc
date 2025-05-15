@@ -71,7 +71,7 @@
 #define DYNAMIC_UPDATE_INTERVAL 5000//cycle
 #define SAMPLING_DURATION 15000 //cycle
 
-#define SAMPLING_DURATION_INSN 50000000 //instructions
+#define SAMPLING_DURATION_INSN 100000000 //instructions
 #define UPDATE_INTERVAL_INSN 20000000 //instructions
 
 
@@ -572,9 +572,9 @@ void memory_partition_unit::dram_cycle() {
       if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
       //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
       {
-        m_huffman_codebook->generate_shannon_codes();
+        //m_huffman_codebook->generate_shannon_codes();
         //m_huffman_codebook->generate_huffman_codes();
-        //m_huffman_codebook->generate_shannon_fano_codes();
+        m_huffman_codebook->generate_shannon_fano_codes();
         //printf("\n=========================huffman codebook updated=========================\n");
         m_interval_compression_stats.push_back(new compression_stats());
       }
@@ -593,8 +593,8 @@ void memory_partition_unit::dram_cycle() {
     if (m_huffman_enabled == false){
     //generate initial huffman codebook 
     //m_huffman_codebook->generate_huffman_codes();
-    //m_huffman_codebook->generate_shannon_fano_codes();
-    m_huffman_codebook->generate_shannon_codes();
+    m_huffman_codebook->generate_shannon_fano_codes();
+    //m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
     m_interval_compression_stats.push_back(new compression_stats());
     //printf("\n=========================huffman codebook generated=========================\n");
