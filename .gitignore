@@ -59,7 +59,14 @@ debug_tools/WatchYourStep/ptxjitplus/*.ptx
 
 # Accel-sim packages used for regressions
 accel-sim-framework/
-gpu-app-collection/
+
+# Keep gpu-app-collection source, ignore only generated/prebuilt artifacts
+gpu-app-collection/bin/
+gpu-app-collection/data_dirs/
+gpu-app-collection/4.2/
+gpu-app-collection/gpucomputingsdk_4.2.9_linux.run
+gpu-app-collection/*.tgz
+gpu-app-collection/*.tgz.*
 
 # Simulation SDK package (binary installer)
 util/job_launching/4.2/
