@@ -32,6 +32,7 @@
 
 #include <list>
 #include <set>
+#include <algorithm>
 #include <sstream> 
 #include <iomanip> 
 #include <string>
@@ -63,9 +64,12 @@
 #define PWD 4 //parallel decoding way
 #define PWD_DECOMPRESSOR_LATENCY DECOMPRESSOR_LATENCY/PWD
 #define PWD_TOTAL_NUMBER_OF_DECOMPRESSOR TOTAL_NUMBER_OF_DECOMPRESSOR/PWD
-#define HUFFMAN_SYMBOL_LENGTH 16 //NOTE: in bits
+#define HUFFMAN_SYMBOL_LENGTH 8 //NOTE: in bits
 #define MAG 32 // Memory Access Granularity in bytes
 #define MEMORY_REQUEST_SIZE 128 //in byte
+#define SAMPLING_SYMBOLS_PER_REQUEST 1024 // 1024 is assumed infinity
+#define SAMPLING_FIFO_CAPACITY 1024
+#define SAMPLING_SYMBOL_UPDATES_PER_CYCLE 1024 // 1024 is assumed infinity
 #define HUFFMAN_TABLE_SIZE 1000
 #define DYNAMIC_UPDATE_FLAG 1
 #define DYNAMIC_UPDATE_INTERVAL 5000//cycle
@@ -100,6 +104,68 @@ compression_info memory_partition_unit::get_compression_info(new_addr_type addr)
     compression_info default_info;
     default_info.is_compressed = false;
     return default_info;
+  }
+}
+
+bool memory_partition_unit::sampling_enabled() const {
+  unsigned long long current_cycle =
+      m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
+  return current_cycle < SAMPLING_DURATION || DYNAMIC_UPDATE_FLAG == 1;
+}
+
+bool memory_partition_unit::should_sample_request(const mem_fetch *mf) const {
+  return mf != nullptr &&
+         (mf->get_access_type() == GLOBAL_ACC_R ||
+          mf->get_access_type() == L2_WR_ALLOC_R);
+}
+
+void memory_partition_unit::enqueue_sampled_symbols(const mem_fetch *mf) {
+  if (!sampling_enabled() || !should_sample_request(mf)) {
+    return;
+  }
+
+  const size_t symbol_length = m_huffman_codebook->freq_table.symbol_length();
+  if (symbol_length == 0) {
+    return;
+  }
+
+  new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf->get_addr());
+  unsigned char data[MEMORY_REQUEST_SIZE];
+  m_gpu->get_global_memory()->read(probe_pointer, MEMORY_REQUEST_SIZE, data);
+
+  size_t total_bits = MEMORY_REQUEST_SIZE * 8;
+  size_t available_symbols = total_bits / symbol_length;
+  size_t symbols_to_enqueue = std::min(
+      static_cast<size_t>(SAMPLING_SYMBOLS_PER_REQUEST), available_symbols);
+
+  for (size_t i = 0; i < symbols_to_enqueue; ++i) {
+    if (m_sampling_symbol_fifo.size() >= SAMPLING_FIFO_CAPACITY) {
+      break;
+    }
+    // Sample evenly across the cache line rather than biasing toward
+    // the first few symbols only.
+    size_t symbol_index =
+        ((2 * i + 1) * available_symbols) / (2 * symbols_to_enqueue);
+    size_t bit_pos = symbol_index * symbol_length;
+    uint64_t symbol = m_huffman_codebook->m_compressor.extract_symbol_from_bitstream(
+        data, MEMORY_REQUEST_SIZE, bit_pos, symbol_length);
+    m_sampling_symbol_fifo.push_back(symbol);
+  }
+}
+
+void memory_partition_unit::sampling_cycle() {
+  if (m_sampling_symbol_fifo.empty()) {
+    return;
+  }
+
+  for (size_t i = 0; i < SAMPLING_SYMBOL_UPDATES_PER_CYCLE; ++i) {
+    if (m_sampling_symbol_fifo.empty()) {
+      break;
+    }
+
+    uint64_t symbol = m_sampling_symbol_fifo.front();
+    m_sampling_symbol_fifo.pop_front();
+    m_huffman_codebook->freq_table.update_frequency(symbol);
   }
 }
 
@@ -369,6 +435,8 @@ void memory_partition_unit::simple_dram_model_cycle() {
 }
 
 void memory_partition_unit::dram_cycle() {
+  sampling_cycle();
+
   // pop completed memory request from dram and push it to dram-to-L2 queue
   // of the original sub partition
   
@@ -553,21 +621,7 @@ void memory_partition_unit::dram_cycle() {
 
     //logic for dynamic update
     if (DYNAMIC_UPDATE_FLAG == 1){
-      //continue to sample
-      if (mf_to_be_classified!=nullptr){
-        if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R || mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
-        new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr());   
-        unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
-        for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
-                m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-                //char x = data[i];
-            //fprintf(stdout, " %u", x & 0x00FF);
-          }
-          m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
-          delete[] data;
-          data = nullptr;
-        }
-      }
+      enqueue_sampled_symbols(mf_to_be_classified);
       //update the codebook
       if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
       //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
@@ -592,8 +646,8 @@ void memory_partition_unit::dram_cycle() {
     //   printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     if (m_huffman_enabled == false){
     //generate initial huffman codebook 
-    //m_huffman_codebook->generate_huffman_codes();
-    m_huffman_codebook->generate_shannon_fano_codes();
+    m_huffman_codebook->generate_huffman_codes();
+    // m_huffman_codebook->generate_shannon_fano_codes();
     //m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
     m_interval_compression_stats.push_back(new compression_stats());
@@ -862,19 +916,7 @@ void memory_partition_unit::dram_cycle() {
     //else: sampling phase
     //check if the request is a read request
     if (mf_to_be_classified!=nullptr){
-      
-    if (mf_to_be_classified->get_access_type() == GLOBAL_ACC_R || mf_to_be_classified->get_access_type() == L2_WR_ALLOC_R){
-      new_addr_type probe_pointer = m_config->m_L2_config.block_addr(mf_to_be_classified->get_addr());   
-      unsigned char *data = new unsigned char[MEMORY_REQUEST_SIZE];
-      for (int i = 0; i<MEMORY_REQUEST_SIZE; i++){
-              m_gpu->get_global_memory()->read(probe_pointer+i, 1, data+i);
-              //char x = data[i];
-          //fprintf(stdout, " %u", x & 0x00FF);
-        }
-        m_huffman_codebook->freq_table.process_data_block(data,MEMORY_REQUEST_SIZE);
-        delete[] data;
-        data = nullptr;
-    }
+      enqueue_sampled_symbols(mf_to_be_classified);
     
     dram_delay_t d;
     d.req = mf_to_be_classified;

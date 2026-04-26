@@ -3595,15 +3595,25 @@ unsigned CUDARTAPI __cudaPushCallConfiguration(dim3 gridDim, dim3 blockDim,
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
   }
-  cudaConfigureCallInternal(gridDim, blockDim, sharedMem, stream);
+  return static_cast<unsigned>(
+      cudaConfigureCallInternal(gridDim, blockDim, sharedMem, stream));
 }
 
 cudaError_t CUDARTAPI __cudaPopCallConfiguration(dim3 *gridDim, dim3 *blockDim,
                                                  size_t *sharedMem,
                                                  void *stream) {
+  gpgpu_context *ctx = GPGPU_Context();
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
   }
+  gpgpusim_ptx_assert(!ctx->api->g_cuda_launch_stack.empty(),
+                      "empty launch stack");
+  kernel_config &config = ctx->api->g_cuda_launch_stack.back();
+  if (gridDim) *gridDim = config.grid_dim();
+  if (blockDim) *blockDim = config.block_dim();
+  if (sharedMem) *sharedMem = config.shared_mem();
+  if (stream) *(reinterpret_cast<struct CUstream_st **>(stream)) =
+                   config.get_stream();
   return g_last_cudaError = cudaSuccess;
 }
 

@@ -40,6 +40,7 @@
 
 #include <list>
 #include <queue>
+#include <deque>
 #include <sstream> 
 #include <iomanip> 
 #include <string>
@@ -100,6 +101,7 @@ class memory_partition_unit {
   void simple_dram_model_cycle();
   //Sitao : similarity cache cycle
   void similarity_cache_cycle();
+  void sampling_cycle();
   
 
   void set_done(mem_fetch *mf);
@@ -177,6 +179,9 @@ class memory_partition_unit {
   //Sitao:interface for m_compression_storage
   void update_compression_storage(new_addr_type addr, compression_info info);
   compression_info get_compression_info(new_addr_type addr);
+  bool sampling_enabled() const;
+  bool should_sample_request(const mem_fetch *mf) const;
+  void enqueue_sampled_symbols(const mem_fetch *mf);
   class metadata_cache_interface *m_metadata_interface;
   class partition_mf_allocator *m_metadata_allocator;
 
@@ -230,6 +235,7 @@ class memory_partition_unit {
   //sitao: compressor latency queue
   std::list<dram_delay_t> m_compressor_latency_queue;
   std::list<dram_delay_t> m_decompressor_latency_queue;
+  std::deque<uint64_t> m_sampling_symbol_fifo;
 
   class gpgpu_sim *m_gpu;
 };

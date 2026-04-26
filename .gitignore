@@ -61,3 +61,24 @@ debug_tools/WatchYourStep/ptxjitplus/*.ptx
 accel-sim-framework/
 gpu-app-collection/
 
+# Simulation run results (large output files)
+util/job_launching/sim_run_*/
+util/job_launching/logfiles/
+util/job_launching/run.out
+util/job_launching/run.err
+util/job_launching/__pycache__/
+util/job_launching/4.2/
+util/job_launching/gpucomputingsdk_4.2.9_linux.run
+
+# Temp/generated files in project root
+_app_cuda_version_*
+_cuobjdump_list_ptx_*
+simple_cuda_test
+simple_cuda_test.*.ptx
+simple_cuda_test.*.ptxas
+simple_cuda_test.out
+simple_cuda_test_patchcheck.out
+simple_cuda_test_rerun.out
+*.zip
+command.txt
+
