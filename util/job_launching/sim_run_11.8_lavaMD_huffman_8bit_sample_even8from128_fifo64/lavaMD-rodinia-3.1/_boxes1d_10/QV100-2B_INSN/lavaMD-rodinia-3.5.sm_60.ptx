@@ -1,0 +1,14 @@
+
+
+
+
+
+
+
+
+.version 7.8
+.target sm_60
+.address_size 64
+
+
+

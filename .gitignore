@@ -61,12 +61,7 @@ debug_tools/WatchYourStep/ptxjitplus/*.ptx
 accel-sim-framework/
 gpu-app-collection/
 
-# Simulation run results (large output files)
-util/job_launching/sim_run_*/
-util/job_launching/logfiles/
-util/job_launching/run.out
-util/job_launching/run.err
-util/job_launching/__pycache__/
+# Simulation SDK package (binary installer)
 util/job_launching/4.2/
 util/job_launching/gpucomputingsdk_4.2.9_linux.run
 

@@ -1,0 +1,53 @@
+#! /bin/bash
+#SBATCH -J srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0
+#SBATCH --threads-per-core=1
+#SBATCH --cpus-per-task=1
+#SBATCH --nodes=1
+#SBATCH --mem-per-cpu=4G
+#SBACTH --time=200:00:00,
+#SBATCH -p batch
+#SBATCH --mail-type=END,FAIL
+#SBATCH --export=ALL
+#SBATCH --output=/tmp/srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.o%j
+#SBATCH --error=/tmp/srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.e%j
+
+copy_output() {
+    mv /tmp/srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.e$SLURM_JOB_ID ./srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.e$SLURM_JOB_ID
+    mv /tmp/srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.o$SLURM_JOB_ID ./srad_v2-rodinia-3.1-2048_2048_0_127_0_127_0_5_2.gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0.o$SLURM_JOB_ID
+}
+
+trap copy_output ERR
+
+set -e
+
+if [ "$GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN" != "1" ]; then
+    export GPGPUSIM_ROOT=/home/wf6711/ece575/ECE575-ComputerArch-Project
+    source $GPGPUSIM_ROOT/setup_environment
+else
+    echo "Skipping setup_environment - already set"
+fi
+
+echo "doing: export -n PTX_SIM_USE_PTX_FILE"
+export -n PTX_SIM_USE_PTX_FILE
+echo "doing: export LD_LIBRARY_PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/gpgpu-sim-builds/gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/gpgpu-sim-builds/gpgpu-sim_git-commit-ea4ab366b6736907abcbb7194c885c3127d60864_modified_11.0:$LD_LIBRARY_PATH
+echo "doing: cd /home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/srad_v2-rodinia-3.1/2048_2048_0_127_0_127_0_5_2/QV100-2B_INSN"
+cd /home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/srad_v2-rodinia-3.1/2048_2048_0_127_0_127_0_5_2/QV100-2B_INSN
+echo "doing: export OPENCL_CURRENT_TEST_PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/srad_v2-rodinia-3.1/2048_2048_0_127_0_127_0_5_2/QV100-2B_INSN"
+export OPENCL_CURRENT_TEST_PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/util/job_launching/sim_run_11.8_srad_v2_huffman_8bit_sample_even8from128_fifo_inf/srad_v2-rodinia-3.1/2048_2048_0_127_0_127_0_5_2/QV100-2B_INSN
+echo "doing: export OPENCL_REMOTE_GPU_HOST=REPLACE_REMOTE_HOST"
+export OPENCL_REMOTE_GPU_HOST=REPLACE_REMOTE_HOST
+echo "doing "
+
+echo "doing: export PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/bin:/usr/local/cuda-11.8/bin:/home/wf6711/.local/bin:/usr/bin:/bin:/usr/local/cuda-11.8/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.cursor-server/bin/linux-x64/3578107fdf149b00059ddad37048220e41681000/bin/remote-cli:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.cursor-server/bin/linux-x64/3578107fdf149b00059ddad37048220e41681000/bin/remote-cli:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/share/Modules/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/puppetlabs/bin:/opt/dell/srvadmin/bin"
+export PATH=/home/wf6711/ece575/ECE575-ComputerArch-Project/bin:/usr/local/cuda-11.8/bin:/home/wf6711/.local/bin:/usr/bin:/bin:/usr/local/cuda-11.8/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.cursor-server/bin/linux-x64/3578107fdf149b00059ddad37048220e41681000/bin/remote-cli:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.cursor-server/bin/linux-x64/3578107fdf149b00059ddad37048220e41681000/bin/remote-cli:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/home/wf6711/.local/bin:/home/wf6711/bin:/usr/share/Modules/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/puppetlabs/bin:/opt/dell/srvadmin/bin
+
+# Uncomment to force blocking torque launches
+# this needs to be commented for concurrent kernel ptx mode
+echo "doing export CUDA_LAUNCH_BLOCKING=1"
+export CUDA_LAUNCH_BLOCKING=1
+
+
+echo "doing:  /home/wf6711/ece575/ECE575-ComputerArch-Project/gpu-app-collection/src/..//bin/11.8/release/srad_v2-rodinia-3.1 2048 2048 0 127 0 127 0.5 2"
+ /home/wf6711/ece575/ECE575-ComputerArch-Project/gpu-app-collection/src/..//bin/11.8/release/srad_v2-rodinia-3.1 2048 2048 0 127 0 127 0.5 2
+copy_output
