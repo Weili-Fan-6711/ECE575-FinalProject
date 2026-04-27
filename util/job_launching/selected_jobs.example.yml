@@ -1,0 +1,11 @@
+benchmarks:
+  - rodinia-3.1:backprop-rodinia-3.1
+  - rodinia-3.1:bfs-rodinia-3.1
+
+configs:
+  - QV100-2B_INSN
+
+launch_name: example-local-run
+run_dir: sim_run_11.8_example_local_run
+launcher: local
+cores: 2

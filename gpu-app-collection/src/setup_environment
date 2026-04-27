@@ -2,6 +2,15 @@
 export GPUAPPS_SETUP_ENVIRONMENT_WAS_RUN=
 export GPUAPPS_ROOT="$( cd "$( dirname "$BASH_SOURCE" )" && pwd )"/../
 export CUDA_PATH=$CUDA_INSTALL_PATH
+if [ -z "$NVIDIA_COMPUTE_SDK_LOCATION" ]; then
+    export NVIDIA_COMPUTE_SDK_LOCATION=$GPUAPPS_ROOT/src/4.2
+fi
+
+if [ -d "$CUDA_INSTALL_PATH/lib64" ]; then
+    export CUDA_LIB_DIR=$CUDA_INSTALL_PATH/lib64
+else
+    export CUDA_LIB_DIR=$CUDA_INSTALL_PATH/lib
+fi
 
 if [ ! -d $NVIDIA_COMPUTE_SDK_LOCATION/../4.2 ]; then
     echo "SDK 4.2 Not detected - installing and building"

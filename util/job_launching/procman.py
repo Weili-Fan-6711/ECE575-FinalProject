@@ -136,11 +136,10 @@ class Job:
 
 
 class ProcMan:
-    def __init__(self, jobLimit, pickleFile):
+    def __init__(self, jobLimit, pickleFile=None):
+        if pickleFile is None:
+            pickleFile = procManStateFile
         self.initialize(jobLimit, pickleFile)
-
-    def __init__(self, jobLimit):
-        self.initialize(jobLimit, procManStateFile)
 
     def saveState(self):
         pickle.dump(self, open(self.pickleFile, "wb+"))
@@ -171,15 +170,22 @@ class ProcMan:
     def spawnProcMan(self, sleepTime):
         if not self.mutable:
             sys.exit("This ProcMan has already been started. No new spawning can occur.")
-        shutil.copy(self.pickleFile, self.pickleFile + ".tmp")
-        p = Popen([__file__,"-f", self.pickleFile + ".tmp", "-t", str(sleepTime)],
-            cwd=this_directory
+        child_pickle = self.pickleFile + ".tmp"
+        shutil.copy(self.pickleFile, child_pickle)
+        python_exec = sys.executable if sys.executable else shutil.which("python3")
+        if python_exec == None:
+            sys.exit("Cannot find a Python interpreter to spawn ProcMan")
+        p = Popen(
+            [python_exec, __file__, "-f", child_pickle, "-t", str(sleepTime)],
+            cwd=this_directory,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
         )
         print("ProcMan spawned [pid={0}]".format(p.pid))
 
     def killJobs(self):
         print("Killing {0} jobs".format(len(self.activeJobs)))
-        for jid, activeJob in self.activeJobs.items():
+        for jid, activeJob in list(self.activeJobs.items()):
             try:
                 p = psutil.Process(activeJob.procId)
             except (psutil.NoSuchProcess,psutil.AccessDenied) as e:
@@ -187,7 +193,7 @@ class ProcMan:
                continue
             for child in p.children(recursive=True):
                 os.kill(child.pid,9)
-        os.kill(activeJob.procId,9)
+            os.kill(activeJob.procId,9)
 
     def tick(self):
         if self.tickingProcess == None:
@@ -324,7 +330,7 @@ def selfTest():
                                    "sleep 20s")
         st = os.stat(jobScript)
         os.chmod(jobScript, st.st_mode | stat.S_IEXEC)
-        out, err = subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+        out, err = subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                         jobScript], stdout=PIPE).communicate()
         out = out.decode("utf-8")
         if err != None:
@@ -333,12 +339,12 @@ def selfTest():
         print("Queued Job {0}".format(out))
 
     print("Starting Jobs")
-    subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+    subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                         "-S", "-t", "5"], stdout=PIPE)
     out = ""
     while out != "Nothing Active":
         time.sleep(1)
-        out, err = subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+        out, err = subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                         "-p"], stdout=PIPE).communicate()
         out = out.strip().decode("utf-8")
         if err != None:
@@ -361,7 +367,7 @@ def selfTest():
                                        "sleep 20s")
             st = os.stat(jobScript)
             os.chmod(jobScript, st.st_mode | stat.S_IEXEC)
-            out, err = subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+            out, err = subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                             jobScript], stdout=PIPE).communicate()
             out = out.decode("utf-8")
             if err != None:
@@ -370,13 +376,13 @@ def selfTest():
             print("ProcMan {0}: Queued Job {0}".format(j, out))
 
         print("ProcMan {0}: Starting Jobs".format(j))
-        subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+        subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                              "-S", "-t", "5"], stdout=PIPE)
 
     out = ""
     while out != "Nothing Active":
         time.sleep(1)
-        out, err = subprocess.Popen([os.path.join(this_directory, "procman.py"),\
+        out, err = subprocess.Popen([sys.executable, os.path.join(this_directory, "procman.py"),\
                                         "-p"], stdout=PIPE).communicate()
         out = out.strip().decode("utf-8")
         if err != None:
@@ -462,7 +468,7 @@ def main():
             if not procMan.mutable:
                 sys.exit("Error - this procman has already started")
         else:
-            procMan = ProcMan(options.cores)
+            procMan = ProcMan(options.cores, options.file)
         exec_file = args[0]
         st = os.stat(exec_file)
         os.chmod(exec_file, st.st_mode | stat.S_IEXEC)

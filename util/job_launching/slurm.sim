@@ -14,6 +14,8 @@
 copy_output() {
     mv /tmp/REPLACE_NAME.e$SLURM_JOB_ID ./REPLACE_NAME.e$SLURM_JOB_ID
     mv /tmp/REPLACE_NAME.o$SLURM_JOB_ID ./REPLACE_NAME.o$SLURM_JOB_ID
+    ln -sfn ./REPLACE_NAME.e$SLURM_JOB_ID ./run.err
+    ln -sfn ./REPLACE_NAME.o$SLURM_JOB_ID ./run.out
 }
 
 trap copy_output ERR

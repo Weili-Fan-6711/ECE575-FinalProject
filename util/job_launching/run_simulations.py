@@ -124,10 +124,24 @@ class ConfigurationSpec:
                     torque_out_file = open(torque_out_filename, 'w+')
                     saved_dir = os.getcwd()
                     os.chdir(this_run_dir)
-                    if subprocess.call([job_submit_call,\
-                                       os.path.join(this_run_dir , job_template)],\
-                                       stdout=torque_out_file) < 0:
-                        exit("Error Launching Job")
+                    submit_rc = subprocess.call(
+                        [job_submit_call, os.path.join(this_run_dir, job_template)],
+                        stdout=torque_out_file,
+                        stderr=torque_out_file,
+                    )
+                    if submit_rc != 0:
+                        torque_out_file.seek(0)
+                        submit_output = torque_out_file.read().strip()
+                        exit(
+                            "Error launching job with {0} (rc={1}) for {2}-{3} {4}\n{5}".format(
+                                job_submit_call,
+                                submit_rc,
+                                benchmark,
+                                self.benchmark_args_subdirs[args],
+                                self.run_subdir,
+                                submit_output,
+                            )
+                        )
                     else:
                         # Parse the torque output for just the numeric ID
                         torque_out_file.seek(0)

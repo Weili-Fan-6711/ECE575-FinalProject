@@ -15,17 +15,17 @@ then
 
 name=${2:-"test_no_security"}
 
-./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1 -N $name
-./run_simulations.py -B parboil -C QV100-2B_INSN-V1 -N $name
-./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1 -N $name
-./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1 -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1 -N $name
+python3 ./run_simulations.py -B parboil -C QV100-2B_INSN-V1 -N $name
+python3 ./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1 -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1 -N $name
 
-./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2 -N $name
-./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2 -N $name
-./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2 -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2 -N $name
+python3 ./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2 -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2 -N $name
 
-./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3 -N $name
-./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3 -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3 -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3 -N $name
 
 elif test "$configuration" = "B"
 then
@@ -34,17 +34,17 @@ name=${2:-"test_baseline"}
 
 # For Baseline Security
 
-./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
-./run_simulations.py -B parboil -C QV100-2B_INSN-V1-BASELINE -N $name
-./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
-./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
+python3 ./run_simulations.py -B parboil -C QV100-2B_INSN-V1-BASELINE -N $name
+python3 ./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1-BASELINE -N $name
 
-./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
-./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
-./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
+python3 ./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2-BASELINE -N $name
 
-./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3-BASELINE -N $name
-./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3-BASELINE -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3-BASELINE -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3-BASELINE -N $name
 
 elif test "$configuration" = "S"
 then
@@ -53,15 +53,15 @@ name=${2:-"test_salus"}
 
 # For Salus
 
-./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1-SALUS -N $name
-./run_simulations.py -B parboil -C QV100-2B_INSN-V1-SALUS -N $name
-./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1-SALUS -N $name
-./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1-SALUS -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v1 -C QV100-2B_INSN-V1-SALUS -N $name
+python3 ./run_simulations.py -B parboil -C QV100-2B_INSN-V1-SALUS -N $name
+python3 ./run_simulations.py -B pannotia_v1 -C QV100-2B_INSN-V1-SALUS -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v1 -C QV100-2B_INSN-V1-SALUS -N $name
 
-./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2-SALUS -N $name
-./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2-SALUS -N $name
-./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2-SALUS -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v2 -C QV100-2B_INSN-V2-SALUS -N $name
+python3 ./run_simulations.py -B pannotia_v2 -C QV100-2B_INSN-V2-SALUS -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v2 -C QV100-2B_INSN-V2-SALUS -N $name
 
-./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3-SALUS -N $name
-./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3-SALUS -N $name
+python3 ./run_simulations.py -B rodinia-3.1_v3 -C QV100-2B_INSN-V3-SALUS -N $name
+python3 ./run_simulations.py -B lonestargpu-2.0_v3 -C QV100-2B_INSN-V3-SALUS -N $name
 fi

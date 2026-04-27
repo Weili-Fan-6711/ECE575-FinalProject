@@ -21,7 +21,7 @@
 .SUFFIXES : .cu .cu_dbg.o .c_dbg.o .cpp_dbg.o .cu_rel.o .c_rel.o .cpp_rel.o .cubin .ptx
 
 INCLUDES += -I$(NVIDIA_COMPUTE_SDK_LOCATION)/../4.2/C/common/inc
-ADDITIONAL_LIBS := -L$(NVIDIA_COMPUTE_SDK_LOCATION)/../4.2/C/lib -lcutil_x86_64
+ADDITIONAL_LIBS := -L$(NVIDIA_COMPUTE_SDK_LOCATION)/../4.2/C/lib
 
 # Add new SM Versions here as devices with new Compute Capability are released
 SM_VERSIONS   := 10 11 12 13 20 21 30 50 60 62 70 75
@@ -282,7 +282,11 @@ else
     ifeq ($(i386),1)
        LIB       := -L$(CUDA_INSTALL_PATH)/lib -L$(LIBDIR) -L$(LIBDIRSDK) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
     else
-       LIB       := -L$(CUDA_INSTALL_PATH)/lib64 -L$(LIBDIR) -L$(LIBDIRSDK) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
+       ifeq ($(shell test -d $(CUDA_INSTALL_PATH)/lib64; echo $$?), 0)
+         LIB     := -L$(CUDA_INSTALL_PATH)/lib64 -L$(LIBDIR) -L$(LIBDIRSDK) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
+       else
+         LIB     := -L$(CUDA_INSTALL_PATH)/lib -L$(LIBDIR) -L$(LIBDIRSDK) -L$(COMMONDIR)/lib/$(OSLOWER) -L$(SHAREDDIR)/lib
+       endif
     endif
   endif
 endif
@@ -341,7 +345,9 @@ ifneq ($(STATIC_LIB),)
 	LINKLINE  = ar rucv $(TARGET) $(OBJS)
 else
 	ifneq ($(OMIT_CUTIL_LIB),1)
-		LIB += -lcutil_$(LIB_ARCH)$(LIBSUFFIX) 
+		ifneq ($(wildcard $(NVIDIA_COMPUTE_SDK_LOCATION)/../4.2/C/lib/libcutil_$(LIB_ARCH)$(LIBSUFFIX).a),)
+			LIB += -lcutil_$(LIB_ARCH)$(LIBSUFFIX)
+		endif
 	endif
 	ifneq ($(OMIT_SHRUTIL_LIB),1)
 		LIB += -lshrutil_$(LIB_ARCH)$(LIBSUFFIX) 
@@ -513,4 +519,3 @@ clobber : clean
 	$(VERBOSE)rm -rf $(SHAREDDIR)/lib/*.a
 	$(VERBOSE)rm -rf $(COMMONDIR)/obj
 	$(VERBOSE)rm -rf $(SHAREDDIR)/obj
-
