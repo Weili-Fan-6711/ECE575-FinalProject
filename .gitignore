@@ -75,6 +75,7 @@ util/job_launching/gpucomputingsdk_4.2.9_linux.run
 # Temp/generated files in project root
 _app_cuda_version_*
 _cuobjdump_list_ptx_*
+.conda/
 simple_cuda_test
 simple_cuda_test.*.ptx
 simple_cuda_test.*.ptxas
@@ -83,4 +84,3 @@ simple_cuda_test_patchcheck.out
 simple_cuda_test_rerun.out
 *.zip
 command.txt
-

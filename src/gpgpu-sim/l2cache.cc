@@ -119,6 +119,39 @@ bool memory_partition_unit::should_sample_request(const mem_fetch *mf) const {
           mf->get_access_type() == L2_WR_ALLOC_R);
 }
 
+void memory_partition_unit::capture_interval_codebook_snapshot(
+    unsigned long long cycle, size_t top_k) {
+  interval_codebook_snapshot snapshot;
+  snapshot.cycle = cycle;
+  snapshot.symbol_length_bits = m_huffman_codebook->freq_table.symbol_length();
+  snapshot.total_frequency = m_huffman_codebook->freq_table.get_total_frequency();
+  snapshot.unique_symbols = m_huffman_codebook->freq_table.size();
+  snapshot.entropy_bits = m_huffman_codebook->freq_table.compute_entropy();
+
+  auto top_frequencies = m_huffman_codebook->freq_table.get_top_frequencies();
+  if (top_frequencies.size() > top_k) {
+    top_frequencies.resize(top_k);
+  }
+
+  snapshot.top_entries.reserve(top_frequencies.size());
+  for (const auto& entry : top_frequencies) {
+    codebook_symbol_stat top_entry;
+    top_entry.symbol = entry.first;
+    top_entry.frequency = entry.second;
+    snapshot.top_entries.push_back(top_entry);
+  }
+
+  m_interval_codebook_snapshots.push_back(snapshot);
+}
+
+void memory_partition_unit::start_new_interval(
+    unsigned long long cycle, bool capture_codebook_snapshot) {
+  m_interval_compression_stats.push_back(new compression_stats());
+  if (capture_codebook_snapshot) {
+    capture_interval_codebook_snapshot(cycle);
+  }
+}
+
 void memory_partition_unit::enqueue_sampled_symbols(const mem_fetch *mf) {
   if (!sampling_enabled() || !should_sample_request(mf)) {
     return;
@@ -618,26 +651,26 @@ void memory_partition_unit::dram_cycle() {
   if (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >= SAMPLING_DURATION)
   //if((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn) >= SAMPLING_DURATION_INSN)
   { 
+    const unsigned long long current_cycle =
+        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
+    const bool reached_interval_boundary =
+        ((current_cycle - SAMPLING_DURATION) % DYNAMIC_UPDATE_INTERVAL == 0);
 
-    //logic for dynamic update
-    if (DYNAMIC_UPDATE_FLAG == 1){
+    // Dynamic mode continues to sample and periodically rebuilds the codebook.
+    if (DYNAMIC_UPDATE_FLAG == 1) {
       enqueue_sampled_symbols(mf_to_be_classified);
-      //update the codebook
-      if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
-      //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
-      {
+
+      if (reached_interval_boundary && m_huffman_enabled == true) {
         //m_huffman_codebook->generate_shannon_codes();
         //m_huffman_codebook->generate_huffman_codes();
         m_huffman_codebook->generate_shannon_fano_codes();
-        //printf("\n=========================huffman codebook updated=========================\n");
-        m_interval_compression_stats.push_back(new compression_stats());
+        start_new_interval(current_cycle, true);
       }
-    }
-    else{
-      if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle-SAMPLING_DURATION)%DYNAMIC_UPDATE_INTERVAL == 0) && (m_huffman_enabled == true))
-      //if (((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn - SAMPLING_DURATION_INSN)%UPDATE_INTERVAL_INSN) && (m_huffman_enabled == true))
-      {
-        m_interval_compression_stats.push_back(new compression_stats());
+    } else {
+      // Static mode keeps interval compression stats, but the codebook does not
+      // change after the initial build, so there is no new snapshot to record.
+      if (reached_interval_boundary && m_huffman_enabled == true) {
+        start_new_interval(current_cycle, false);
       }
     }
 
@@ -650,9 +683,8 @@ void memory_partition_unit::dram_cycle() {
     // m_huffman_codebook->generate_shannon_fano_codes();
     //m_huffman_codebook->generate_shannon_codes();
     m_huffman_enabled = true;
-    m_interval_compression_stats.push_back(new compression_stats());
-    //printf("\n=========================huffman codebook generated=========================\n");
-    m_cycle_huffman_generated = (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+    start_new_interval(current_cycle, true);
+    m_cycle_huffman_generated = current_cycle;
     }
 
     /////////////////////huffman code logic starts////////////////////////////////////////

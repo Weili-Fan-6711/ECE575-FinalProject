@@ -88,6 +88,21 @@ class compression_stats{
     total_compression_requests++;
    }
 };
+
+struct codebook_symbol_stat {
+  uint64_t symbol = 0;
+  uint64_t frequency = 0;
+};
+
+struct interval_codebook_snapshot {
+  unsigned long long cycle = 0;
+  size_t symbol_length_bits = 0;
+  uint64_t total_frequency = 0;
+  size_t unique_symbols = 0;
+  double entropy_bits = 0.0;
+  std::vector<codebook_symbol_stat> top_entries;
+};
+
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
@@ -172,6 +187,7 @@ class memory_partition_unit {
   std::unordered_map<new_addr_type, compression_info> m_compression_storage;
   compression_stats m_compression_stats;
   std::vector<compression_stats*> m_interval_compression_stats;
+  std::vector<interval_codebook_snapshot> m_interval_codebook_snapshots;
   unsigned int m_cycle_huffman_generated = 0;
   
 
@@ -182,6 +198,10 @@ class memory_partition_unit {
   bool sampling_enabled() const;
   bool should_sample_request(const mem_fetch *mf) const;
   void enqueue_sampled_symbols(const mem_fetch *mf);
+  void start_new_interval(unsigned long long cycle,
+                          bool capture_codebook_snapshot);
+  void capture_interval_codebook_snapshot(unsigned long long cycle,
+                                          size_t top_k = 10);
   class metadata_cache_interface *m_metadata_interface;
   class partition_mf_allocator *m_metadata_allocator;
 

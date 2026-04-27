@@ -201,6 +201,32 @@ std::vector<std::pair<uint64_t, uint64_t>> frequency_value_table::get_frequency_
     return freq_pairs;
 }
 
+uint64_t frequency_value_table::get_total_frequency() const {
+    uint64_t total_frequency = 0;
+    for (const auto& entry : m_frequency_map) {
+        total_frequency += entry.second;
+    }
+    return total_frequency;
+}
+
+double frequency_value_table::compute_entropy() const {
+    const uint64_t total_frequency = get_total_frequency();
+    if (total_frequency == 0) {
+        return 0.0;
+    }
+
+    double entropy = 0.0;
+    for (const auto& entry : m_frequency_map) {
+        const double probability =
+            static_cast<double>(entry.second) / total_frequency;
+        if (probability > 0.0) {
+            entropy -= probability * std::log2(probability);
+        }
+    }
+
+    return entropy;
+}
+
 // Get a reference to the internal frequency map
 const std::unordered_map<uint64_t, uint64_t>& frequency_value_table::get_frequency_map() const {
     return m_frequency_map;
@@ -845,4 +871,3 @@ void huffman_codebook::clear_all() {
 size_t huffman_codebook::size() const {
     return m_codes.size();
 }
-

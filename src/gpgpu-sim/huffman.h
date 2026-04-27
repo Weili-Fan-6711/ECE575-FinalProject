@@ -126,6 +126,20 @@ public:
      * @return Vector of pairs containing (symbol, frequency)
      */
     std::vector<std::pair<uint64_t, uint64_t>> get_frequency_pairs() const;
+
+    /**
+     * Get the sum of all symbol frequencies currently stored in the table.
+     *
+     * @return Total number of observed symbols
+     */
+    uint64_t get_total_frequency() const;
+
+    /**
+     * Compute the Shannon entropy of the current symbol distribution.
+     *
+     * @return Entropy in bits per symbol
+     */
+    double compute_entropy() const;
     
     /**
      * Get a reference to the internal frequency map
@@ -438,4 +452,3 @@ public:
 
 
 #endif
-

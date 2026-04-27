@@ -75,9 +75,28 @@ class gpgpu_sim_wrapper {};
 
 #include <stdio.h>
 #include <string.h>
+#include <bitset>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
+
+static std::string format_symbol_pattern(uint64_t symbol,
+                                         size_t symbol_length_bits) {
+  const size_t clamped_bits = std::min<size_t>(symbol_length_bits, 64);
+  const size_t hex_width = std::max<size_t>(1, (clamped_bits + 3) / 4);
+  std::ostringstream oss;
+  oss << "0x" << std::hex << std::setw(hex_width) << std::setfill('0')
+      << symbol;
+
+  if (clamped_bits > 0) {
+    const std::string binary = std::bitset<64>(symbol).to_string().substr(
+        64 - clamped_bits, clamped_bits);
+    oss << " (" << binary << ")";
+  }
+
+  return oss.str();
+}
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -1427,6 +1446,42 @@ void gpgpu_sim::gpu_print_stat() {
       int interval_num = 0;
       for (auto interval_stat : m_memory_partition_unit[i]->m_interval_compression_stats) {
         printf(" -- interval %d: number of compression requests = %lld, raw compression ratio = %lf, effective compression ratio = %lf\n",interval_num++,interval_stat->total_compression_requests,interval_stat->total_raw_compression_ratio,interval_stat->total_effective_compression_ratio);
+        const int snapshot_idx = interval_num - 1;
+        if (snapshot_idx <
+            static_cast<int>(m_memory_partition_unit[i]
+                                 ->m_interval_codebook_snapshots.size())) {
+          const interval_codebook_snapshot &snapshot =
+              m_memory_partition_unit[i]
+                  ->m_interval_codebook_snapshots[snapshot_idx];
+          const double max_entropy =
+              static_cast<double>(snapshot.symbol_length_bits);
+          const double entropy_pct =
+              max_entropy > 0.0
+                  ? (snapshot.entropy_bits / max_entropy) * 100.0
+                  : 0.0;
+          printf(
+              "    codebook snapshot: cycle = %llu, entropy = %.6lf bits/symbol "
+              "(max = %.2lf, %.2lf%%), unique symbols = %zu, total symbols = %llu\n",
+              static_cast<unsigned long long>(snapshot.cycle),
+              snapshot.entropy_bits, max_entropy, entropy_pct,
+              snapshot.unique_symbols,
+              static_cast<unsigned long long>(snapshot.total_frequency));
+          for (size_t top_idx = 0; top_idx < snapshot.top_entries.size();
+               ++top_idx) {
+            const codebook_symbol_stat &entry = snapshot.top_entries[top_idx];
+            const double probability =
+                snapshot.total_frequency > 0
+                    ? static_cast<double>(entry.frequency) /
+                          static_cast<double>(snapshot.total_frequency)
+                    : 0.0;
+            const std::string pattern = format_symbol_pattern(
+                entry.symbol, snapshot.symbol_length_bits);
+            printf(
+                "       top%zu: pattern = %s, frequency = %llu, probability = %.6lf\n",
+                top_idx, pattern.c_str(),
+                static_cast<unsigned long long>(entry.frequency), probability);
+          }
+        }
       }
     }
   }
