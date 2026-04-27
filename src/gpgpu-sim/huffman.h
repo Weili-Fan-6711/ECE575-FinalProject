@@ -152,6 +152,14 @@ public:
      * Clear all frequencies in the table
      */
     void clear();
+
+    /**
+     * Age the tracked history by dividing every symbol count by the given
+     * factor and dropping symbols whose counts become zero.
+     *
+     * @param divisor Value to divide each frequency by
+     */
+    void scale_down(uint64_t divisor);
     
     /**
      * Check if a specific symbol exists in the table

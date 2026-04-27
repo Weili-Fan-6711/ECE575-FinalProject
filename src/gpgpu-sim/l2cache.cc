@@ -64,7 +64,7 @@
 #define PWD 4 //parallel decoding way
 #define PWD_DECOMPRESSOR_LATENCY DECOMPRESSOR_LATENCY/PWD
 #define PWD_TOTAL_NUMBER_OF_DECOMPRESSOR TOTAL_NUMBER_OF_DECOMPRESSOR/PWD
-#define HUFFMAN_SYMBOL_LENGTH 8 //NOTE: in bits
+#define HUFFMAN_SYMBOL_LENGTH 16 //NOTE: in bits
 #define MAG 32 // Memory Access Granularity in bytes
 #define MEMORY_REQUEST_SIZE 128 //in byte
 #define SAMPLING_SYMBOLS_PER_REQUEST 1024 // 1024 is assumed infinity
@@ -74,6 +74,11 @@
 #define DYNAMIC_UPDATE_FLAG 1
 #define DYNAMIC_UPDATE_INTERVAL 5000//cycle
 #define SAMPLING_DURATION 15000 //cycle
+
+#define CODEBOOK_METHOD_HUFFMAN 0
+#define CODEBOOK_METHOD_SHANNON_FANO 1
+#define CODEBOOK_METHOD_SHANNON 2
+#define CODEBOOK_METHOD CODEBOOK_METHOD_HUFFMAN
 
 #define SAMPLING_DURATION_INSN 100000000 //instructions
 #define UPDATE_INTERVAL_INSN 20000000 //instructions
@@ -113,6 +118,18 @@ bool memory_partition_unit::sampling_enabled() const {
   return current_cycle < SAMPLING_DURATION || DYNAMIC_UPDATE_FLAG == 1;
 }
 
+static codebook_build_method selected_codebook_build_method() {
+#if CODEBOOK_METHOD == CODEBOOK_METHOD_HUFFMAN
+  return codebook_build_method::huffman;
+#elif CODEBOOK_METHOD == CODEBOOK_METHOD_SHANNON_FANO
+  return codebook_build_method::shannon_fano;
+#elif CODEBOOK_METHOD == CODEBOOK_METHOD_SHANNON
+  return codebook_build_method::shannon;
+#else
+#error "Unsupported CODEBOOK_METHOD selection"
+#endif
+}
+
 bool memory_partition_unit::should_sample_request(const mem_fetch *mf) const {
   return mf != nullptr &&
          (mf->get_access_type() == GLOBAL_ACC_R ||
@@ -150,6 +167,29 @@ void memory_partition_unit::start_new_interval(
   if (capture_codebook_snapshot) {
     capture_interval_codebook_snapshot(cycle);
   }
+}
+
+bool memory_partition_unit::rebuild_codebook_and_age_samples(
+    unsigned long long cycle, codebook_build_method method) {
+  size_t code_count = 0;
+  switch (method) {
+    case codebook_build_method::huffman:
+      code_count = m_huffman_codebook->generate_huffman_codes();
+      break;
+    case codebook_build_method::shannon_fano:
+      code_count = m_huffman_codebook->generate_shannon_fano_codes();
+      break;
+    case codebook_build_method::shannon:
+      code_count = m_huffman_codebook->generate_shannon_codes();
+      break;
+  }
+  if (code_count == 0) {
+    return false;
+  }
+
+  start_new_interval(cycle, true);
+  m_huffman_codebook->freq_table.scale_down(2);
+  return true;
 }
 
 void memory_partition_unit::enqueue_sampled_symbols(const mem_fetch *mf) {
@@ -661,10 +701,8 @@ void memory_partition_unit::dram_cycle() {
       enqueue_sampled_symbols(mf_to_be_classified);
 
       if (reached_interval_boundary && m_huffman_enabled == true) {
-        //m_huffman_codebook->generate_shannon_codes();
-        //m_huffman_codebook->generate_huffman_codes();
-        m_huffman_codebook->generate_shannon_fano_codes();
-        start_new_interval(current_cycle, true);
+        rebuild_codebook_and_age_samples(current_cycle,
+                                         selected_codebook_build_method());
       }
     } else {
       // Static mode keeps interval compression stats, but the codebook does not
@@ -678,13 +716,13 @@ void memory_partition_unit::dram_cycle() {
     // if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle)%100000 == 0 ){
     //   printf("\n compression phase: cycle %llu\n", m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);}
     if (m_huffman_enabled == false){
-    //generate initial huffman codebook 
-    m_huffman_codebook->generate_huffman_codes();
-    // m_huffman_codebook->generate_shannon_fano_codes();
-    //m_huffman_codebook->generate_shannon_codes();
-    m_huffman_enabled = true;
-    start_new_interval(current_cycle, true);
-    m_cycle_huffman_generated = current_cycle;
+      // Use the experiment-wide selected method for both the initial codebook
+      // construction and any later dynamic rebuilds.
+      if (rebuild_codebook_and_age_samples(current_cycle,
+                                           selected_codebook_build_method())) {
+        m_huffman_enabled = true;
+        m_cycle_huffman_generated = current_cycle;
+      }
     }
 
     /////////////////////huffman code logic starts////////////////////////////////////////

@@ -237,6 +237,21 @@ void frequency_value_table::clear() {
     m_frequency_map.clear();
 }
 
+void frequency_value_table::scale_down(uint64_t divisor) {
+    if (divisor <= 1) {
+        return;
+    }
+
+    for (auto it = m_frequency_map.begin(); it != m_frequency_map.end();) {
+        it->second /= divisor;
+        if (it->second == 0) {
+            it = m_frequency_map.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 // Check if a specific symbol exists in the table
 bool frequency_value_table::contains(uint64_t symbol) const {
     return m_frequency_map.find(symbol) != m_frequency_map.end();

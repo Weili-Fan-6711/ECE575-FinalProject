@@ -103,6 +103,12 @@ struct interval_codebook_snapshot {
   std::vector<codebook_symbol_stat> top_entries;
 };
 
+enum class codebook_build_method {
+  huffman,
+  shannon_fano,
+  shannon
+};
+
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
@@ -202,6 +208,8 @@ class memory_partition_unit {
                           bool capture_codebook_snapshot);
   void capture_interval_codebook_snapshot(unsigned long long cycle,
                                           size_t top_k = 10);
+  bool rebuild_codebook_and_age_samples(unsigned long long cycle,
+                                        codebook_build_method method);
   class metadata_cache_interface *m_metadata_interface;
   class partition_mf_allocator *m_metadata_allocator;
 
