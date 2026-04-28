@@ -1,0 +1,15 @@
+benchmarks:
+  - rodinia-3.1:backprop-rodinia-3.1
+  - rodinia-3.1:bfs-rodinia-3.1
+  - rodinia-3.1:hotspot-rodinia-3.1
+  - rodinia-3.1:kmeans-rodinia-3.1:0
+  - rodinia-3.1:lavaMD-rodinia-3.1
+  - rodinia-3.1:lud-rodinia-3.1
+
+configs:
+  - QV100-2B_INSN
+
+launch_name: rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4
+run_dir: sim_run_11.8_rodinia_shannon_compression_core6-symlen16_aging_FIFO1024SP64TP4
+launcher: local
+cores: 63

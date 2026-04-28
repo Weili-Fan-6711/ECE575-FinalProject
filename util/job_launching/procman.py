@@ -257,8 +257,17 @@ class ProcMan:
         othersCores = 0
         for pickleFile in glob.glob(os.path.join(os.path.dirname(self.pickleFile),"*pickle*")):
             if pickleFile != self.pickleFile:
-                otherProcMan = pickle.load(open(pickleFile, 'rb'))
-                othersCores += len(otherProcMan.activeJobs)
+                try:
+                    if os.path.getsize(pickleFile) == 0:
+                        continue
+                    with open(pickleFile, 'rb') as handle:
+                        otherProcMan = pickle.load(handle)
+                    othersCores += len(otherProcMan.activeJobs)
+                except (EOFError, FileNotFoundError, pickle.UnpicklingError):
+                    # Another procman may be rewriting its state file, or a stale
+                    # zero-byte/corrupt file may still be present. Skip it and
+                    # let the next polling tick observe a stable snapshot.
+                    continue
         return othersCores
 
     def getState(self):
