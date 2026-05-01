@@ -38,6 +38,7 @@ source setup_environment
 cd gpu-app-collection
 source ./src/setup_environment
 cd ../util/job_launching
+./run_selected.sh -Y my_jobs.yml
 ```
 
 Run a selected list locally:

@@ -9,7 +9,8 @@ benchmarks:
 configs:
   - QV100-2B_INSN
 
-launch_name: rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4
-run_dir: sim_run_11.8_rodinia_shannon_compression_core6-symlen16_aging_FIFO1024SP64TP4
+launch_name: rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4_TS256
+run_dir: sim_run_11.8_rodinia_shannon_compression_core6-symlen16_aging_FIFO1024SP64TP4_TS256
 launcher: local
 cores: 63
+ 
