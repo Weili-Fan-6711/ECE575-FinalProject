@@ -109,6 +109,13 @@ enum class codebook_build_method {
   shannon
 };
 
+struct pending_codebook_rebuild {
+  bool active = false;
+  unsigned long long start_cycle = 0;
+  unsigned long long ready_cycle = 0;
+  codebook_build_method method = codebook_build_method::huffman;
+};
+
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
@@ -208,6 +215,10 @@ class memory_partition_unit {
                           bool capture_codebook_snapshot);
   void capture_interval_codebook_snapshot(unsigned long long cycle,
                                           size_t top_k = 10);
+  bool start_dynamic_codebook_rebuild(unsigned long long cycle,
+                                      codebook_build_method method);
+  void complete_dynamic_codebook_rebuild_if_ready(
+      unsigned long long current_cycle);
   bool rebuild_codebook_and_age_samples(unsigned long long cycle,
                                         codebook_build_method method);
   class metadata_cache_interface *m_metadata_interface;
@@ -264,6 +275,7 @@ class memory_partition_unit {
   std::list<dram_delay_t> m_compressor_latency_queue;
   std::list<dram_delay_t> m_decompressor_latency_queue;
   std::deque<uint64_t> m_sampling_symbol_fifo;
+  pending_codebook_rebuild m_pending_dynamic_codebook_rebuild;
 
   class gpgpu_sim *m_gpu;
 };

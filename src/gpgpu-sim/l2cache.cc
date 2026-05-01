@@ -71,6 +71,7 @@
 #define SAMPLING_FIFO_CAPACITY 1024
 #define SAMPLING_SYMBOL_UPDATES_PER_CYCLE 4 // 1024 is assumed infinity
 #define HUFFMAN_TABLE_SIZE 256
+#define CODEBOOK_REBUILD_DELAY (HUFFMAN_TABLE_SIZE * 2 + 22)
 #define DYNAMIC_UPDATE_FLAG 1
 #define DYNAMIC_UPDATE_INTERVAL 5000//cycle
 #define SAMPLING_DURATION 15000 //cycle
@@ -169,6 +170,35 @@ void memory_partition_unit::start_new_interval(
   }
 }
 
+bool memory_partition_unit::start_dynamic_codebook_rebuild(
+    unsigned long long cycle, codebook_build_method method) {
+  if (m_pending_dynamic_codebook_rebuild.active) {
+    return false;
+  }
+
+  m_pending_dynamic_codebook_rebuild.active = true;
+  m_pending_dynamic_codebook_rebuild.start_cycle = cycle;
+  m_pending_dynamic_codebook_rebuild.ready_cycle =
+      cycle + CODEBOOK_REBUILD_DELAY;
+  m_pending_dynamic_codebook_rebuild.method = method;
+  return true;
+}
+
+void memory_partition_unit::complete_dynamic_codebook_rebuild_if_ready(
+    unsigned long long current_cycle) {
+  if (!m_pending_dynamic_codebook_rebuild.active ||
+      current_cycle < m_pending_dynamic_codebook_rebuild.ready_cycle) {
+    return;
+  }
+
+  if (rebuild_codebook_and_age_samples(
+          current_cycle, m_pending_dynamic_codebook_rebuild.method)) {
+    m_cycle_huffman_generated = current_cycle;
+  }
+
+  m_pending_dynamic_codebook_rebuild.active = false;
+}
+
 bool memory_partition_unit::rebuild_codebook_and_age_samples(
     unsigned long long cycle, codebook_build_method method) {
   size_t code_count = 0;
@@ -227,6 +257,10 @@ void memory_partition_unit::enqueue_sampled_symbols(const mem_fetch *mf) {
 }
 
 void memory_partition_unit::sampling_cycle() {
+  if (m_pending_dynamic_codebook_rebuild.active) {
+    return;
+  }
+
   if (m_sampling_symbol_fifo.empty()) {
     return;
   }
@@ -508,6 +542,20 @@ void memory_partition_unit::simple_dram_model_cycle() {
 }
 
 void memory_partition_unit::dram_cycle() {
+  const unsigned long long current_cycle =
+      m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
+  const bool in_compression_phase = current_cycle >= SAMPLING_DURATION;
+  const bool reached_interval_boundary =
+      in_compression_phase &&
+      ((current_cycle - SAMPLING_DURATION) % DYNAMIC_UPDATE_INTERVAL == 0);
+
+  if (DYNAMIC_UPDATE_FLAG == 1 && m_huffman_enabled == true &&
+      reached_interval_boundary) {
+    start_dynamic_codebook_rebuild(current_cycle,
+                                   selected_codebook_build_method());
+  }
+
+  complete_dynamic_codebook_rebuild_if_ready(current_cycle);
   sampling_cycle();
 
   // pop completed memory request from dram and push it to dram-to-L2 queue
@@ -691,19 +739,9 @@ void memory_partition_unit::dram_cycle() {
   if (m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >= SAMPLING_DURATION)
   //if((m_gpu->gpu_sim_insn + m_gpu->gpu_tot_sim_insn) >= SAMPLING_DURATION_INSN)
   { 
-    const unsigned long long current_cycle =
-        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
-    const bool reached_interval_boundary =
-        ((current_cycle - SAMPLING_DURATION) % DYNAMIC_UPDATE_INTERVAL == 0);
-
     // Dynamic mode continues to sample and periodically rebuilds the codebook.
     if (DYNAMIC_UPDATE_FLAG == 1) {
       enqueue_sampled_symbols(mf_to_be_classified);
-
-      if (reached_interval_boundary && m_huffman_enabled == true) {
-        rebuild_codebook_and_age_samples(current_cycle,
-                                         selected_codebook_build_method());
-      }
     } else {
       // Static mode keeps interval compression stats, but the codebook does not
       // change after the initial build, so there is no new snapshot to record.
