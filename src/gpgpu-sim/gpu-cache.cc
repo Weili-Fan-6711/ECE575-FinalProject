@@ -268,12 +268,12 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
           return HIT;
         } else {
           idx = index;
-          return SECTOR_MISS;
+          return (m_config.m_cache_type == SECTOR) ? SECTOR_MISS : MISS;
         }
 
       } else if (line->is_valid_line() && line->get_status(mask) == INVALID) {
         idx = index;
-        return SECTOR_MISS;
+        return (m_config.m_cache_type == SECTOR) ? SECTOR_MISS : MISS;
       } else {
         assert(line->get_status(mask) == INVALID);
       }
@@ -317,7 +317,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         pending_lines.find(m_config.block_addr(addr));
     assert(mf);
     if (!mf->is_write() && i != pending_lines.end()) {
-      if (i->second != mf->get_inst().get_uid()) return SECTOR_MISS;
+      if (i->second != mf->get_inst().get_uid())
+        return (m_config.m_cache_type == SECTOR) ? SECTOR_MISS : MISS;
     }
   }
 

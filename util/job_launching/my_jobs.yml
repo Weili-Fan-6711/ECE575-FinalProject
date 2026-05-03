@@ -7,10 +7,10 @@ benchmarks:
   - rodinia-3.1:lud-rodinia-3.1
 
 configs:
-  - QV100-2B_INSN
+  - QV100_NONSECTOR-2B_INSN
 
-launch_name: rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4_TS256
-run_dir: sim_run_11.8_rodinia_shannon_compression_core6-symlen16_aging_FIFO1024SP64TP4_TS256
-launcher: local
+launch_name: rodinia-nonsector-no-compression-baseline
+run_dir: sim_run_11.8_rodinia_nonsector_no_compression_baseline
+launcher: sbatch
 cores: 63
  

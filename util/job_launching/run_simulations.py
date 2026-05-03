@@ -283,7 +283,7 @@ class ConfigurationSpec:
             txt_args = " -config ./gpgpusim.config -trace ./traces/kernelslist.g"
 
         if os.getenv("TORQUE_QUEUE_NAME") == None:
-            queue_name = "batch"
+            queue_name = "shared"
         else:
             queue_name = os.getenv("TORQUE_QUEUE_NAME")
 
