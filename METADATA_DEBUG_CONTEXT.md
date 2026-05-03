@@ -1,5 +1,21 @@
 # Metadata Path Debug Context
 
+## Current Summary
+
+- Ongoing compression experiments should use only the non-sector L2 config:
+  `QV100_NONSECTOR-2B_INSN`, sourced from
+  `configs/tested-cfgs/SM7_QV100_NONSECTOR/gpgpusim.config`.
+- This non-sector-only policy is intentional: compression is modeled at cacheline
+  granularity, so future debug and benchmark runs should avoid the sector-L2
+  configuration except as historical reference.
+- The metadata cache merge-waiter limit is currently relaxed to `256`
+  (`A:256:256`) to keep metadata from dominating the results. This is a relaxed
+  assumption for debugging and evaluation, not a final tuned hardware choice.
+- Metadata-MSHR/merge tuning still needs a dedicated follow-up study after the
+  main compression-path bottlenecks are removed.
+- Backprop debug run directories are grouped under:
+  `util/job_launching/debug_backprop_compression_path_runs/`
+
 ## Purpose
 
 This note captures the current debugging context for the compression-path slowdown
@@ -35,14 +51,15 @@ Why does the compressed run with idealized de/compressor settings still have muc
  lower IPC than the no-compression non-sector baseline?
 
 Primary suspicion at the moment:
-- metadata path contention, especially `metadata_cache` `Reservation_fails`
+- post-metadata compressed data handling and any remaining non-sector-path
+  artifacts
 
 ## Reference Runs
 
 ### Baseline: non-sector, no compression
 
 Path:
-- `util/job_launching/sim_run_11.8_backprop_nonsector_nocomp_final/backprop-rodinia-3.1/65536/QV100_NONSECTOR-2B_INSN/run.out`
+- `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_nonsector_nocomp_final/backprop-rodinia-3.1/65536/QV100_NONSECTOR-2B_INSN/run.out`
 
 Important second-kernel numbers:
 - `gpu_sim_cycle = 34821`
@@ -55,7 +72,7 @@ Important second-kernel numbers:
 ### Compressed rebuild: 128KB metadata cache
 
 Path:
-- `util/job_launching/sim_run_11.8_backprop_rebuild_compression_metadata128KB/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
+- `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_rebuild_compression_metadata128KB/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
 
 Important second-kernel numbers:
 - `gpu_sim_cycle = 60717`
@@ -114,7 +131,7 @@ metadata path is a major contributor to slowdown.
 ### 5. Metadata reservation fails are overwhelmingly merge-pressure failures
 
 Using the fail-breakdown instrumentation on:
-- `util/job_launching/sim_run_11.8_backprop_rebuild_compression_metadata128KB_failbreakdown/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
+- `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_rebuild_compression_metadata128KB_failbreakdown/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
 
 Totals across the second-kernel metadata summaries:
 - `Reservation_fails = 890452`
@@ -217,13 +234,13 @@ Reference interpretation:
 
 Reference files:
 - baseline non-sector no-compression:
-  `util/job_launching/sim_run_11.8_backprop_nonsector_nocomp_final/backprop-rodinia-3.1/65536/QV100_NONSECTOR-2B_INSN/run.out`
+  `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_nonsector_nocomp_final/backprop-rodinia-3.1/65536/QV100_NONSECTOR-2B_INSN/run.out`
 - original metadata config `A:256:4`:
-  `util/job_launching/sim_run_11.8_backprop_rebuild_compression_metadata128KB_failbreakdown/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
+  `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_rebuild_compression_metadata128KB_failbreakdown/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
 - experiment `A:256:256`:
-  `util/job_launching/sim_run_11.8_backprop_rebuild_compression_metadata128KB_mshr256_merge256/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
+  `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_rebuild_compression_metadata128KB_mshr256_merge256/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
 - experiment `A:4:256`:
-  `util/job_launching/sim_run_11.8_backprop_rebuild_compression_metadata128KB_mshr4_merge256/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
+  `util/job_launching/debug_backprop_compression_path_runs/sim_run_11.8_backprop_rebuild_compression_metadata128KB_mshr4_merge256/backprop-rodinia-3.1/65536/QV100-2B_INSN/run.out`
 
 Second-kernel summary:
 

@@ -1,5 +1,9 @@
 # Minimal Build And Run Commands
 
+Current reminder: for ongoing compression experiments, only use the non-sector
+L2 config `QV100_NONSECTOR-2B_INSN`, which comes from
+`configs/tested-cfgs/SM7_QV100_NONSECTOR/gpgpusim.config`.
+
 ## 1. Build `gpgpu-sim`
 
 ```bash
@@ -46,7 +50,7 @@ Run a selected list locally:
 ```bash
 ./run_selected.sh \
   -B rodinia-3.1:backprop-rodinia-3.1,rodinia-3.1:bfs-rodinia-3.1 \
-  -C QV100-2B_INSN \
+  -C QV100_NONSECTOR-2B_INSN \
   -N my-local-run \
   -l local \
   -c 2 \
@@ -66,7 +70,7 @@ Run a selected list with Slurm:
 ```bash
 ./run_selected.sh \
   -B rodinia-3.1:backprop-rodinia-3.1,rodinia-3.1:bfs-rodinia-3.1 \
-  -C QV100-2B_INSN \
+  -C QV100_NONSECTOR-2B_INSN \
   -N my-sbatch-run \
   -l sbatch \
   -r sim_run_11.8_my_sbatch_run
