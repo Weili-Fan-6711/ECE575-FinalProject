@@ -1489,6 +1489,42 @@ void gpgpu_sim::gpu_print_stat() {
   average_effective_compression_ratio /= m_memory_config->m_n_mem;
   printf("\n total number of compression requests = %lld, average raw compression ratio = %lf, average effective compression ratio = %lf\n",total_compression_requests,average_raw_compression_ratio,average_effective_compression_ratio);
 
+  std::vector<unsigned long long> dram_sector_histogram(1, 0);
+  unsigned long long total_dram_data_requests = 0;
+  unsigned long long zero_data_dram_requests = 0;
+  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+    const std::vector<unsigned long long> &partition_histogram =
+        m_memory_partition_unit[i]->get_dram_sector_histogram();
+    if (dram_sector_histogram.size() < partition_histogram.size()) {
+      dram_sector_histogram.resize(partition_histogram.size(), 0);
+    }
+    for (size_t sectors = 1; sectors < partition_histogram.size(); ++sectors) {
+      dram_sector_histogram[sectors] += partition_histogram[sectors];
+    }
+    total_dram_data_requests +=
+        m_memory_partition_unit[i]->get_total_dram_data_requests();
+    zero_data_dram_requests +=
+        m_memory_partition_unit[i]->get_zero_data_dram_requests();
+  }
+  printf("\n========= DRAM request sector histogram =========\n");
+  printf("total counted DRAM data requests = %llu\n",
+         total_dram_data_requests);
+  if (zero_data_dram_requests > 0) {
+    printf("zero-data DRAM requests ignored = %llu\n",
+           zero_data_dram_requests);
+  }
+  if (total_dram_data_requests > 0) {
+    for (size_t sectors = 1; sectors < dram_sector_histogram.size();
+         ++sectors) {
+      if (dram_sector_histogram[sectors] == 0) continue;
+      const double pct =
+          100.0 * static_cast<double>(dram_sector_histogram[sectors]) /
+          static_cast<double>(total_dram_data_requests);
+      printf("%zu sector(s): %llu (%.4f%%)\n", sectors,
+             dram_sector_histogram[sectors], pct);
+    }
+  }
+
 
 
 

@@ -41,6 +41,7 @@
 #include <list>
 #include <queue>
 #include <deque>
+#include <vector>
 #include <sstream> 
 #include <iomanip> 
 #include <string>
@@ -221,6 +222,16 @@ class memory_partition_unit {
       unsigned long long current_cycle);
   bool rebuild_codebook_and_age_samples(unsigned long long cycle,
                                         codebook_build_method method);
+  void record_dram_request_size(unsigned bytes);
+  const std::vector<unsigned long long> &get_dram_sector_histogram() const {
+    return m_dram_sector_histogram;
+  }
+  unsigned long long get_total_dram_data_requests() const {
+    return m_total_dram_data_requests;
+  }
+  unsigned long long get_zero_data_dram_requests() const {
+    return m_zero_data_dram_requests;
+  }
   class metadata_cache_interface *m_metadata_interface;
   class partition_mf_allocator *m_metadata_allocator;
 
@@ -232,6 +243,9 @@ class memory_partition_unit {
   class dram_t *m_dram;
   //Sitao
   class similarity_cache *m_similarity_cache;
+  std::vector<unsigned long long> m_dram_sector_histogram;
+  unsigned long long m_total_dram_data_requests = 0;
+  unsigned long long m_zero_data_dram_requests = 0;
 
   class arbitration_metadata {
    public:

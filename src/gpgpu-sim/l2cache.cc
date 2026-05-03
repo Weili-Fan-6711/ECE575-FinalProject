@@ -276,6 +276,20 @@ void memory_partition_unit::sampling_cycle() {
   }
 }
 
+void memory_partition_unit::record_dram_request_size(unsigned bytes) {
+  if (bytes == 0) {
+    m_zero_data_dram_requests++;
+    return;
+  }
+
+  const unsigned sectors = (bytes + SECTOR_SIZE - 1) / SECTOR_SIZE;
+  if (m_dram_sector_histogram.size() <= sectors) {
+    m_dram_sector_histogram.resize(sectors + 1, 0);
+  }
+  m_dram_sector_histogram[sectors]++;
+  m_total_dram_data_requests++;
+}
+
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
                                              const memory_config *config,
                                              class memory_stats_t *stats,
@@ -1060,6 +1074,7 @@ void memory_partition_unit::dram_cycle() {
       m_dram_to_metadata_cache_queue->push(mf);
     }
     else{
+      record_dram_request_size(mf->get_data_size());
       m_dram->push(mf);
     }
   }
