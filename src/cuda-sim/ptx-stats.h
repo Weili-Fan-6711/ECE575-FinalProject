@@ -62,6 +62,9 @@ class ptx_stats {
   void ptx_file_line_stats_add_smem_bank_conflict(unsigned pc,
                                                   unsigned n_way_bkconflict);
   void ptx_file_line_stats_add_uncoalesced_gmem(unsigned pc, unsigned n_access);
+  void ptx_file_line_stats_add_gmem_warp_footprint(unsigned pc,
+                                                   unsigned n_32b_windows,
+                                                   unsigned n_128b_windows);
   void ptx_file_line_stats_add_inflight_memory_insn(int sc_id, unsigned pc);
   void ptx_file_line_stats_sub_inflight_memory_insn(int sc_id, unsigned pc);
   void ptx_file_line_stats_add_warp_divergence(unsigned pc,

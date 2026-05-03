@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include "../libcuda/gpgpu_context.h"
 #include "cuda-sim/cuda-sim.h"
@@ -460,8 +461,26 @@ void warp_inst_t::generate_mem_accesses() {
   }
 
   if (space.get_type() == global_space) {
+    std::set<new_addr_type> unique_32b_windows;
+    std::set<new_addr_type> unique_128b_windows;
+    unsigned access_idx = 0;
+    for (std::list<mem_access_t>::const_iterator it = m_accessq.begin();
+         it != m_accessq.end(); ++it, ++access_idx) {
+      if (access_idx < starting_queue_size) continue;
+      const new_addr_type base_addr = it->get_addr();
+      const unsigned req_size = it->get_size();
+      for (unsigned offset = 0; offset < req_size; offset += SECTOR_SIZE) {
+        const new_addr_type window_addr = base_addr + offset;
+        unique_32b_windows.insert(
+            line_size_based_tag_func(window_addr, SECTOR_SIZE));
+        unique_128b_windows.insert(
+            line_size_based_tag_func(window_addr, MAX_MEMORY_ACCESS_SIZE));
+      }
+    }
     m_config->gpgpu_ctx->stats->ptx_file_line_stats_add_uncoalesced_gmem(
         pc, m_accessq.size() - starting_queue_size);
+    m_config->gpgpu_ctx->stats->ptx_file_line_stats_add_gmem_warp_footprint(
+        pc, unique_32b_windows.size(), unique_128b_windows.size());
   }
   m_mem_accesses_created = true;
 }

@@ -87,6 +87,10 @@ class ptx_file_line_stats {
         smem_warp_count(0),
         gmem_n_access_total(0),
         gmem_warp_count(0),
+        gmem_32b_window_total(0),
+        gmem_32b_window_warp_count(0),
+        gmem_128b_window_total(0),
+        gmem_128b_window_warp_count(0),
         exposed_latency(0),
         warp_divergence(0) {}
 
@@ -101,6 +105,13 @@ class ptx_file_line_stats {
                                            // total from this instruction
   unsigned long
       gmem_warp_count;  // number of warps causing these uncoalesced access
+  unsigned long long
+      gmem_32b_window_total;  // unique 32B windows touched by this instruction
+  unsigned long gmem_32b_window_warp_count;
+  unsigned long long
+      gmem_128b_window_total;  // unique 128B windows touched by this
+                               // instruction
+  unsigned long gmem_128b_window_warp_count;
   unsigned long long exposed_latency;  // latency exposed as pipeline bubbles
                                        // (attributed to this instruction)
   unsigned long long
@@ -135,7 +146,8 @@ void ptx_stats::ptx_file_line_stats_write_file() {
   fprintf(
       pfile,
       "kernel line : count latency dram_traffic smem_bk_conflicts smem_warp "
-      "gmem_access_generated gmem_warp exposed_latency warp_divergence\n");
+      "gmem_access_generated gmem_warp gmem_32b_windows gmem_32b_warp "
+      "gmem_128b_windows gmem_128b_warp exposed_latency warp_divergence\n");
   for (it = ptx_file_line_stats_tracker.begin();
        it != ptx_file_line_stats_tracker.end(); it++) {
     fprintf(pfile, "%s %i : ", it->first.st.c_str(), it->first.line);
@@ -146,6 +158,10 @@ void ptx_stats::ptx_file_line_stats_write_file() {
     fprintf(pfile, "%lu ", it->second.smem_warp_count);
     fprintf(pfile, "%llu ", it->second.gmem_n_access_total);
     fprintf(pfile, "%lu ", it->second.gmem_warp_count);
+    fprintf(pfile, "%llu ", it->second.gmem_32b_window_total);
+    fprintf(pfile, "%lu ", it->second.gmem_32b_window_warp_count);
+    fprintf(pfile, "%llu ", it->second.gmem_128b_window_total);
+    fprintf(pfile, "%lu ", it->second.gmem_128b_window_warp_count);
     fprintf(pfile, "%llu ", it->second.exposed_latency);
     fprintf(pfile, "%llu ", it->second.warp_divergence);
     fprintf(pfile, "\n");
@@ -213,6 +229,20 @@ void ptx_stats::ptx_file_line_stats_add_uncoalesced_gmem(unsigned pc,
         pInsn->source_file(), pInsn->source_line())];
     line_stats.gmem_n_access_total += n_access;
     line_stats.gmem_warp_count += 1;
+  }
+}
+
+void ptx_stats::ptx_file_line_stats_add_gmem_warp_footprint(
+    unsigned pc, unsigned n_32b_windows, unsigned n_128b_windows) {
+  const ptx_instruction *pInsn = gpgpu_ctx->pc_to_instruction(pc);
+
+  if (pInsn != NULL) {
+    ptx_file_line_stats &line_stats = ptx_file_line_stats_tracker[ptx_file_line(
+        pInsn->source_file(), pInsn->source_line())];
+    line_stats.gmem_32b_window_total += n_32b_windows;
+    line_stats.gmem_32b_window_warp_count += 1;
+    line_stats.gmem_128b_window_total += n_128b_windows;
+    line_stats.gmem_128b_window_warp_count += 1;
   }
 }
 
