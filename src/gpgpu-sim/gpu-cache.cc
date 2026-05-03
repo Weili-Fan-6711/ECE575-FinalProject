@@ -833,6 +833,21 @@ unsigned long long cache_stats::get_stats(
   return total;
 }
 
+unsigned long long cache_stats::get_fail_stats(
+    enum mem_access_type *access_type, unsigned num_access_type,
+    enum cache_reservation_fail_reason *fail_status,
+    unsigned num_fail_status) const {
+  unsigned long long total = 0;
+  for (unsigned type = 0; type < num_access_type; ++type) {
+    for (unsigned fail = 0; fail < num_fail_status; ++fail) {
+      if (!check_fail_valid((int)access_type[type], (int)fail_status[fail]))
+        assert(0 && "Unknown cache access type or fail outcome");
+      total += m_fail_stats[access_type[type]][fail_status[fail]];
+    }
+  }
+  return total;
+}
+
 void cache_stats::get_sub_stats(struct cache_sub_stats &css) const {
   ///
   /// Overwrites "css" with the appropriate statistics from this cache.

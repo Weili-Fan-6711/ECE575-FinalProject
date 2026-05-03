@@ -1091,6 +1091,10 @@ class cache_stats {
                                unsigned num_access_type,
                                enum cache_request_status *access_status,
                                unsigned num_access_status) const;
+  unsigned long long get_fail_stats(
+      enum mem_access_type *access_type, unsigned num_access_type,
+      enum cache_reservation_fail_reason *fail_status,
+      unsigned num_fail_status) const;
   void get_sub_stats(struct cache_sub_stats &css) const;
 
   // Get per-window cache stats for AerialVision

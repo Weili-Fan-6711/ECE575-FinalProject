@@ -1489,6 +1489,11 @@ void gpgpu_sim::gpu_print_stat() {
   average_effective_compression_ratio /= m_memory_config->m_n_mem;
   printf("\n total number of compression requests = %lld, average raw compression ratio = %lf, average effective compression ratio = %lf\n",total_compression_requests,average_raw_compression_ratio,average_effective_compression_ratio);
 
+  printf("\n========= metadata cache stats =========\n");
+  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+    m_memory_partition_unit[i]->print_metadata_cache_summary(stdout);
+  }
+
   std::vector<unsigned long long> dram_sector_histogram(1, 0);
   unsigned long long total_dram_data_requests = 0;
   unsigned long long zero_data_dram_requests = 0;

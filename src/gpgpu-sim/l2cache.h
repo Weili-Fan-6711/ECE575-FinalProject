@@ -139,6 +139,7 @@ class memory_partition_unit {
   void print_stat(FILE *fp) { m_dram->print_stat(fp); }
   void visualize() const { m_dram->visualize(); }
   void print(FILE *fp) const;
+  void print_metadata_cache_summary(FILE *fp) const;
   void handle_memcpy_to_gpu(size_t dst_start_addr, unsigned subpart_id,
                             mem_access_sector_mask_t mask);
 
@@ -236,6 +237,8 @@ class memory_partition_unit {
   class partition_mf_allocator *m_metadata_allocator;
 
  private:
+  void sample_metadata_queue_occupancy();
+
   unsigned m_id;
   const memory_config *m_config;
   class memory_stats_t *m_stats;
@@ -246,6 +249,16 @@ class memory_partition_unit {
   std::vector<unsigned long long> m_dram_sector_histogram;
   unsigned long long m_total_dram_data_requests = 0;
   unsigned long long m_zero_data_dram_requests = 0;
+  unsigned long long m_metadata_requests_routed = 0;
+  unsigned long long m_metadata_fixed_latency_returns = 0;
+  unsigned long long m_metadata_read_recompressions = 0;
+  unsigned long long m_metadata_ready_but_dramfull_stalls = 0;
+  unsigned m_max_L2_to_metadata_translate_queue = 0;
+  unsigned m_max_to_metadata_cache_queue = 0;
+  unsigned m_max_from_metadata_cache_queue = 0;
+  unsigned m_max_dram_to_metadata_cache_queue = 0;
+  unsigned m_max_huffman_to_dram_queue = 0;
+  unsigned m_max_dram_latency_queue = 0;
 
   class arbitration_metadata {
    public:

@@ -290,6 +290,27 @@ void memory_partition_unit::record_dram_request_size(unsigned bytes) {
   m_total_dram_data_requests++;
 }
 
+void memory_partition_unit::sample_metadata_queue_occupancy() {
+  m_max_L2_to_metadata_translate_queue =
+      std::max(m_max_L2_to_metadata_translate_queue,
+               m_L2_to_metadata_translater_read_queue->get_n_element());
+  m_max_to_metadata_cache_queue =
+      std::max(m_max_to_metadata_cache_queue,
+               m_to_metadata_cache_queue->get_n_element());
+  m_max_from_metadata_cache_queue =
+      std::max(m_max_from_metadata_cache_queue,
+               m_from_metadata_cache_queue->get_n_element());
+  m_max_dram_to_metadata_cache_queue =
+      std::max(m_max_dram_to_metadata_cache_queue,
+               m_dram_to_metadata_cache_queue->get_n_element());
+  m_max_huffman_to_dram_queue =
+      std::max(m_max_huffman_to_dram_queue,
+               m_huffman_to_dram_queue->get_n_element());
+  m_max_dram_latency_queue = std::max(
+      m_max_dram_latency_queue,
+      static_cast<unsigned>(m_dram_latency_queue.size()));
+}
+
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
                                              const memory_config *config,
                                              class memory_stats_t *stats,
@@ -556,6 +577,8 @@ void memory_partition_unit::simple_dram_model_cycle() {
 }
 
 void memory_partition_unit::dram_cycle() {
+
+  //Sitao: dynamic codebook rebuild logic
   const unsigned long long current_cycle =
       m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
   const bool in_compression_phase = current_cycle >= SAMPLING_DURATION;
@@ -571,6 +594,7 @@ void memory_partition_unit::dram_cycle() {
 
   complete_dynamic_codebook_rebuild_if_ready(current_cycle);
   sampling_cycle();
+  //Sitao: dynamic codebook rebuild logic end
 
   // pop completed memory request from dram and push it to dram-to-L2 queue
   // of the original sub partition
@@ -799,6 +823,7 @@ void memory_partition_unit::dram_cycle() {
       if (!m_L2_to_metadata_translater_read_queue->empty()){
         mem_fetch *mf = m_L2_to_metadata_translater_read_queue->top();
         m_L2_to_metadata_translater_read_queue->pop();
+        m_metadata_requests_routed++;
         mf->m_compressed = true;
         mf->m_original_size = mf->get_data_size();
         mf->m_original_addr = mf->get_addr();
@@ -837,6 +862,7 @@ void memory_partition_unit::dram_cycle() {
         m_from_metadata_cache_queue->pop();
         if (mf->m_compressed && (mf->get_access_type() == GLOBAL_ACC_R 
         || mf->get_access_type() == L2_WR_ALLOC_R)){
+          m_metadata_read_recompressions++;
 
           //alter the request to access the original data
           mf->set_addr(mf->m_original_addr);
@@ -1071,13 +1097,23 @@ void memory_partition_unit::dram_cycle() {
     if (mf->is_meta_data_request){
       mf->set_status(IN_HUFFMAN_META_DATA_CACHE,
         m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+      m_metadata_fixed_latency_returns++;
       m_dram_to_metadata_cache_queue->push(mf);
     }
     else{
       record_dram_request_size(mf->get_data_size());
       m_dram->push(mf);
     }
+  } else if (!m_dram_latency_queue.empty() &&
+             ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
+              m_dram_latency_queue.front().ready_cycle) &&
+             m_dram_latency_queue.front().req &&
+             m_dram_latency_queue.front().req->is_meta_data_request &&
+             m_dram->full(m_dram_latency_queue.front().req->is_write())) {
+    m_metadata_ready_but_dramfull_stalls++;
   }
+
+  sample_metadata_queue_occupancy();
 }
 
 //Sitao
@@ -1125,6 +1161,54 @@ void memory_partition_unit::set_dram_power_stats(
     unsigned &n_pre, unsigned &n_rd, unsigned &n_wr, unsigned &n_req) const {
   m_dram->set_dram_power_stats(n_cmd, n_activity, n_nop, n_act, n_pre, n_rd,
                                n_wr, n_req);
+}
+
+void memory_partition_unit::print_metadata_cache_summary(FILE *fp) const {
+  cache_sub_stats css;
+  m_metadata_cache->get_sub_stats(css);
+  const double miss_rate =
+      css.accesses ? static_cast<double>(css.misses) / css.accesses : 0.0;
+  enum mem_access_type metadata_access_types[] = {GLOBAL_ACC_R, L2_WR_ALLOC_R};
+  enum cache_reservation_fail_reason line_alloc_fail[] = {LINE_ALLOC_FAIL};
+  enum cache_reservation_fail_reason miss_queue_fail[] = {MISS_QUEUE_FULL};
+  enum cache_reservation_fail_reason mshr_entry_fail[] = {MSHR_ENRTY_FAIL};
+  enum cache_reservation_fail_reason mshr_merge_fail[] = {
+      MSHR_MERGE_ENRTY_FAIL};
+  enum cache_reservation_fail_reason mshr_rw_pending_fail[] = {
+      MSHR_RW_PENDING};
+  const unsigned long long line_alloc_fail_count =
+      m_metadata_cache->get_stats().get_fail_stats(
+          metadata_access_types, 2, line_alloc_fail, 1);
+  const unsigned long long miss_queue_fail_count =
+      m_metadata_cache->get_stats().get_fail_stats(
+          metadata_access_types, 2, miss_queue_fail, 1);
+  const unsigned long long mshr_entry_fail_count =
+      m_metadata_cache->get_stats().get_fail_stats(
+          metadata_access_types, 2, mshr_entry_fail, 1);
+  const unsigned long long mshr_merge_fail_count =
+      m_metadata_cache->get_stats().get_fail_stats(
+          metadata_access_types, 2, mshr_merge_fail, 1);
+  const unsigned long long mshr_rw_pending_fail_count =
+      m_metadata_cache->get_stats().get_fail_stats(
+          metadata_access_types, 2, mshr_rw_pending_fail, 1);
+  fprintf(
+      fp,
+      "metadata_cache_partition[%u]: Access = %llu, Miss = %llu, Miss_rate = "
+      "%.3lf, Pending_hits = %llu, Reservation_fails = %llu, Routed = %llu, "
+      "Fixed_latency_returns = %llu, Read_recompressions = %llu, "
+      "Ready_but_dramfull_stalls = %llu, Fail_breakdown = "
+      "{LINE_ALLOC:%llu, MISS_QUEUE:%llu, MSHR_ENTRY:%llu, MSHR_MERGE:%llu, "
+      "MSHR_RW_PENDING:%llu}, MaxQ = {L2_to_meta:%u, to_meta:%u, "
+      "from_meta:%u, dram_to_meta:%u, huff_to_dram:%u, dram_latency:%u}\n",
+      m_id, css.accesses, css.misses, miss_rate, css.pending_hits,
+      css.res_fails, m_metadata_requests_routed,
+      m_metadata_fixed_latency_returns, m_metadata_read_recompressions,
+      m_metadata_ready_but_dramfull_stalls, line_alloc_fail_count,
+      miss_queue_fail_count, mshr_entry_fail_count, mshr_merge_fail_count,
+      mshr_rw_pending_fail_count,
+      m_max_L2_to_metadata_translate_queue, m_max_to_metadata_cache_queue,
+      m_max_from_metadata_cache_queue, m_max_dram_to_metadata_cache_queue,
+      m_max_huffman_to_dram_queue, m_max_dram_latency_queue);
 }
 
 void memory_partition_unit::print(FILE *fp) const {
