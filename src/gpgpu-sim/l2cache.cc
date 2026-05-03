@@ -57,10 +57,10 @@
 
 
 #define SIMILARITY_CACHE_SIZE 64 // 1KB per partition 
-#define COMPRESSOR_LATENCY 46
-#define DECOMPRESSOR_LATENCY 82
-#define TOTAL_NUMBER_OF_COMPRESSOR 68
-#define TOTAL_NUMBER_OF_DECOMPRESSOR 120
+#define COMPRESSOR_LATENCY 46 //46
+#define DECOMPRESSOR_LATENCY 82 //82
+#define TOTAL_NUMBER_OF_COMPRESSOR 10000000//68
+#define TOTAL_NUMBER_OF_DECOMPRESSOR 10000000//120
 #define PWD 4 //parallel decoding way
 #define PWD_DECOMPRESSOR_LATENCY DECOMPRESSOR_LATENCY/PWD
 #define PWD_TOTAL_NUMBER_OF_DECOMPRESSOR TOTAL_NUMBER_OF_DECOMPRESSOR/PWD
@@ -68,13 +68,16 @@
 #define MAG 32 // Memory Access Granularity in bytes
 #define MEMORY_REQUEST_SIZE 128 //in byte
 #define SAMPLING_SYMBOLS_PER_REQUEST 64 // 1024 is assumed infinity
-#define SAMPLING_FIFO_CAPACITY 0
+#define SAMPLING_FIFO_CAPACITY 1024
 #define SAMPLING_SYMBOL_UPDATES_PER_CYCLE 4 // 1024 is assumed infinity
 #define HUFFMAN_TABLE_SIZE 256
 #define CODEBOOK_REBUILD_DELAY (HUFFMAN_TABLE_SIZE * 2 + 22)
 #define DYNAMIC_UPDATE_FLAG 1
 #define DYNAMIC_UPDATE_INTERVAL 5000//cycle
-#define SAMPLING_DURATION 1000000000000ULL //cycle
+#define SAMPLING_DURATION 15000 //cycle
+//to disable compression:
+//set sampling_fifo_capacity to 0, and Sampling_duration to 1000000000000ULL (effectively infinite number)
+
 
 #define CODEBOOK_METHOD_HUFFMAN 0
 #define CODEBOOK_METHOD_SHANNON_FANO 1
@@ -827,7 +830,8 @@ void memory_partition_unit::dram_cycle() {
         mf->m_compressed = true;
         mf->m_original_size = mf->get_data_size();
         mf->m_original_addr = mf->get_addr();
-        mf->m_metadata_addr = mf->m_original_addr >> 7;
+        // 4-bit metadata per 128B data line: two data lines share one metadata byte.
+        mf->m_metadata_addr = mf->m_original_addr >> 8;
         mf->set_addr(mf->m_metadata_addr);
         mf->is_meta_data_request = true;
         //push the altered request to to_meatadata_cache_queue
@@ -846,8 +850,8 @@ void memory_partition_unit::dram_cycle() {
           mf->m_compressed = true;
           mf->m_original_addr = mf->get_addr();
           mf->m_original_size = mf->get_data_size();
-          // Calculate metadata address by shifting original address right by 7 bits (mapping)
-          mf->m_metadata_addr = mf->m_original_addr >> 7;
+          // Calculate metadata byte address for 4-bit metadata per 128B data line.
+          mf->m_metadata_addr = mf->m_original_addr >> 8;
           mf->set_addr(mf->m_metadata_addr);
           mf->is_meta_data_request = true;
           //push the altered request to to_meatadata_cache_queue

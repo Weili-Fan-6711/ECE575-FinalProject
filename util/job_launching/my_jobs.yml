@@ -9,8 +9,8 @@ benchmarks:
 configs:
   - QV100_NONSECTOR-2B_INSN
 
-launch_name: rodinia-nonsector-no-compression-baseline
-run_dir: sim_run_11.8_rodinia_nonsector_no_compression_baseline
-launcher: sbatch
+launch_name: rodinia-compression-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4_TS256_CODEdelayed_decomINF_metamerge256
+run_dir: sim_run_11.8_rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4_TS256_CODEdelayed_decomINF_metamerge256
+launcher: local
 cores: 63
  

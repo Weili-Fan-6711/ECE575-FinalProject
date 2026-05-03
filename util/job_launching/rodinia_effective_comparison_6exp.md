@@ -68,6 +68,27 @@ Values are `NoComp baseline cycles / experiment cycles`. Values below `1.0` mean
 | srad_v2-rodinia-3.1/2048_2048_0_127_0_127_0_5_2 | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch |
 | streamcluster-rodinia-3.1/10_20_256_65536_65536_1000_none_output_txt_1 | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch | not_in_batch |
 
+## Non-Sector No-Compression vs Non-Sector Metamerge256
+
+Values compare the last available `gpu_tot_sim_cycle` in each workload `run.out`.
+Speedup is `non-sector no-compression cycles / non-sector compressed metamerge256 cycles`.
+`complete` means the run reached `GPGPU-Sim: *** exit detected ***`.
+`partial` means the run had at least one kernel summary but did not reach `GPGPU-Sim: *** exit detected ***`.
+`incomplete_no_cycle` means no `gpu_tot_sim_cycle` was available yet.
+
+Run roots:
+- baseline: `sim_run_11.8_rodinia_nonsector_no_compression_baseline_nonsector`
+- compressed: `sim_run_11.8_rodinia-shannon-compression-core6-symlen16_aging_FIFO1024SP64TP4_TS256_CODEdelayed_decomINF_metamerge256`
+
+| Task | Baseline last `gpu_tot_sim_cycle` | Compressed last `gpu_tot_sim_cycle` | Speedup | Status |
+| --- | ---: | ---: | ---: | --- |
+| backprop-rodinia-3.1/65536 | 55,764 | missing_cycle | NA | baseline: complete (2 kernels); compressed: incomplete_no_cycle (0 kernels) |
+| bfs-rodinia-3.1/__data_graph1MW_6_txt | 2,371,798 | 2,282,315 | 1.039207 | baseline: complete (24 kernels); compressed: complete (24 kernels) |
+| hotspot-rodinia-3.1/1024_2_2___data_temp_1024___data_power_1024_output_out | 108,583 | 124,445 | 0.872538 | baseline: complete (1 kernels); compressed: complete (1 kernels) |
+| kmeans-rodinia-3.1/_o__i___data_28k_4x_features_txt | 134,713 | 119,857 | 1.123948 | baseline: partial (1 kernels); compressed: partial (1 kernels) |
+| lavaMD-rodinia-3.1/_boxes1d_10 | 321,527 | 321,569 | 0.999869 | baseline: complete (1 kernels); compressed: complete (1 kernels) |
+| lud-rodinia-3.1/_i___data_2048_dat | 914,965 | 936,383 | 0.977127 | baseline: complete (18 kernels); compressed: complete (18 kernels) |
+
 ## backprop-rodinia-3.1/65536
 
 | idx | kernel | Huff+Age | Huff | Shan+Age | Shan+Age FIFO512SP32TP4 | Shan+Age FIFO1024SP64TP4 | Shan+Age FIFO1024SP64TP4 TS256 | Shan+Age FIFO1024SP64TP4 TS256 CODEdelayed | Shan+Age FIFO1024SP64TP4 TS512 | Shan+Age FIFO512SP32TP8 | Shan+Age rerun |
